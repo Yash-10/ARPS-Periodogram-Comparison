@@ -2,47 +2,92 @@
 ## To run, do source(bls.R) and source(norm_bls_periodogram.R) if using BLS, and similarly if using TCF ##
 #################################################################
 
-# Below cv function from https://rpubs.com/mengxu/loess_cv
-library(bootstrap)
-loess_wrapper_extrapolate <- function (x, y, span.vals = seq(0.5, 1, by = 0.05), folds = 5){
-  # Do model selection using mean absolute error, which is more robust than squared error.
-  mean.abs.error <- numeric(length(span.vals))
+# # Below cv function from https://rpubs.com/mengxu/loess_cv
+# library(bootstrap)
+# loess_wrapper_extrapolate <- function (x, y, span.vals = seq(0.5, 1, by = 0.05), folds = 5){
+#   # Do model selection using mean absolute error, which is more robust than squared error.
+#   mean.abs.error <- numeric(length(span.vals))
   
-  # Quantify error for each span, using CV
-  loess.model <- function(x, y, span){
-    loess(y ~ x, span = span, control=loess.control(surface="direct"))
-  }
+#   # Quantify error for each span, using CV
+#   loess.model <- function(x, y, span){
+#     loess(y ~ x, span = span, control=loess.control(surface="direct"))
+#   }
   
-  loess.predict <- function(fit, newdata) {
-    predict(fit, newdata = newdata)
-  }
+#   loess.predict <- function(fit, newdata) {
+#     predict(fit, newdata = newdata)
+#   }
 
-  span.index <- 0
-  for (each.span in span.vals) {
-    span.index <- span.index + 1
-    y.hat.cv <- crossval(x, y, theta.fit = loess.model, theta.predict = loess.predict, span = each.span, ngroup = folds)$cv.fit
-    non.empty.indices <- !is.na(y.hat.cv)
-    mean.abs.error[span.index] <- mean(abs(y[non.empty.indices] - y.hat.cv[non.empty.indices]))
-  }
+#   span.index <- 0
+#   for (each.span in span.vals) {
+#     span.index <- span.index + 1
+#     y.hat.cv <- crossval(x, y, theta.fit = loess.model, theta.predict = loess.predict, span = each.span, ngroup = folds)$cv.fit
+#     non.empty.indices <- !is.na(y.hat.cv)
+#     mean.abs.error[span.index] <- mean(abs(y[non.empty.indices] - y.hat.cv[non.empty.indices]))
+#   }
   
-  # find the span which minimizes error
-  best.span <- span.vals[which.min(mean.abs.error)]
+#   # find the span which minimizes error
+#   best.span <- span.vals[which.min(mean.abs.error)]
   
-  # fit and return the best model
-  best.model <- loess(y ~ x, span = best.span, control=loess.control(surface="direct"))
-  return(best.model)
+#   # fit and return the best model
+#   best.model <- loess(y ~ x, span = best.span, control=loess.control(surface="direct"))
+#   return(best.model)
+# }
+
+computeScatter <- function(
+    cobsTrendResid,
+    windowLength=1000,  # window length on one side of the focal point.
+    algo="BLS"
+){
+    scatterVals = c()
+    if (algo == "BLS") {
+        for (i in 1:length(cobsTrendResid)) {
+            if (i <= windowLength) {
+                u = 2*windowLength+1
+                l = i + 1
+                scatterVal = IQR(c(cobsTrendResid[1:i], cobsTrendResid[l:u]))
+                scatterVals <- append(scatterVals, scatterVal)
+                next
+            }
+            else if (i + windowLength >= length(cobsTrendResid) && i+1 <= windowLength) {
+                ll = length(cobsTrendResid) + 1 - 2*windowLength
+                ls = i+1
+                us = length(cobsTrendResid)
+                scatterVal = IQR(c(cobsTrendResid[ll:i], cobsTrendResid[ls:us]))
+                scatterVals <- append(scatterVals, scatterVal)
+                next
+            }
+
+            scatterVal <- IQR(cobsTrendResid[i-windowLength:i+windowLength])
+            scatterVals <- append(scatterVals, scatterVal)
+        }
+    }
+    else if (algo == "TCF") {
+        for (i in 1:length(cobsTrendResid)) {
+            if (i <= windowLength) {
+                scatterVal = IQR(cobsTrendResid[1:windowLength])
+                scatterVals <- append(scatterVals, scatterVal)
+                next
+            }
+            else if (i + windowLength >= length(cobsTrendResid)) {
+                scatterVal = IQR(cobsTrendResid[length(cobsTrendResid)-windowLength:length(cobsTrendResid)])
+                scatterVals <- append(scatterVals, scatterVal)
+                next
+            }
+
+            scatterVal <- IQR(cobsTrendResid[i-windowLength:i+windowLength])
+            scatterVals <- append(scatterVals, scatterVal)
+        }
+    }
+    return (scatterVals)
 }
 
 standardPeriodogram <- function(
     y,  # time series values
     t,  # time
     noiseType = 0,  # 0 for no noise, 1 for white Gaussian noise, and 2 for autoregressive noise (if 2, the ARMA model is internally fixed; also no differencing is used, so it assumes the time-series is stationary or already differenced.)
-    LoessSpan = 0.9,  # degree of smoothing: lower values mean lesser smoothing.
-    scatterSpan = 0.75,  # degree of smoothing: lower values mean lesser smoothing.
     algo = "BLS",  # or "TCF"
-    useCrossValLoess = FALSE,
+    windowLength=100,
     plot = TRUE
-    # Note: LoessSpan and scatterSpan are used only if useCrossValLoess is set to FALSE.
 ){
     if (noiseType == 1) {
         set.seed(1)
@@ -77,48 +122,24 @@ standardPeriodogram <- function(
     }
 
     # (1) Remove trend in periodogram
-    if (useCrossValLoess) {
-        if (algo == "BLS") {
-            Loess <- loess_wrapper_extrapolate(output$periodsTested, output$spec)
-        }
-        else {
-            Loess <- loess_wrapper_extrapolate(periodsToTry, output$outpow)
-        }
-    }
-    else {
-        if (algo == "BLS") {
-            Loess <- loess(output$spec ~ output$periodsTested, span = LoessSpan)
-        }
-        else {
-            Loess <- loess(output$outpow ~ periodsToTry, span = LoessSpan)
-        }
-    }
     if (algo == "BLS") {
-        periodogramTrendRemoved <- output$spec - Loess$fitted
+        cobsxy50 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.5)  # Median regression fit.
     }
     else {
-        periodogramTrendRemoved <- output$outpow - Loess$fitted
+        cobsxy50 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.5)
+    }
+
+    if (algo == "BLS") {
+        periodogramTrendRemoved <- cobsxy50$resid
+    }
+    else {
+        periodogramTrendRemoved <- cobsxy50$resid
     }
 
     # (2) Remove local scatter in periodogram
-    if (algo == "BLS") {
-        Scatter <- abs(diff(output$spec))
-        # After taking diff, we have one less value, i.e. if time series was of length 100, now diff will be 99 in length. So add a value to match length.
-        Scatter <- append(output$spec[1], Scatter)
-    }
-    else {
-        Scatter <- abs(diff(output$outpow))
-        # After taking diff, we have one less value, i.e. if time series was of length 100, now diff will be 99 in length. So add a value to match length.
-        Scatter <- append(output$outpow[1], Scatter)
-    }
+    Scatter <- computeScatter(cobsxy50$resid, windowLength=100)
 
-    if (useCrossValLoess) {
-        scatterLoess <- loess_wrapper_extrapolate(Loess$x, Scatter)
-    }
-    else {
-        scatterLoess <- loess(Scatter ~ Loess$x, span = scatterSpan)
-    }
-    normalizedPeriodogram <- periodogramTrendRemoved / scatterLoess$fitted
+    normalizedPeriodogram <- periodogramTrendRemoved / Scatter
 
     if (algo == "BLS") {
         returnVals <- c(normalizedPeriodogram, output$periodsTested)
@@ -133,17 +154,20 @@ standardPeriodogram <- function(
             par(mfrow=c(2,3))
             plot(t, y, type='l', main='Original time series', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
-            plot(Loess$x, output$spec, type = 'l', main='Original BLS periodogram and loess fit', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-            lines(Loess$x, Loess$fitted, type = 'l', col='red')
-            lines(Loess$x, scatterLoess$fitted, type = 'l', col='blue')
+            plot(cobsxy50$x, output$spec, type = 'l', main='Original BLS periodogram and cobs fit', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            lines(cobsxy50$x, cobsxy50$fitted, type = 'l', col='red')
+            print(length(cobsxy50$x))
+            print(length(Scatter))
+            print(length(periodogramTrendRemoved))
+            lines(cobsxy50$x, Scatter, type = 'l', col='blue')
             legend(x = "topright", lty = c(1, 2), text.font = 6, 
                 col= c("red", "blue"), text.col = "black", 
                 legend=c("trend fit", "local scatter fit")
             )
 
-            plot(Loess$x, periodogramTrendRemoved, type = 'l', main='BLS periodogram (detrended)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            plot(cobsxy50$x, periodogramTrendRemoved, type = 'l', main='BLS periodogram (detrended)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
-            plot(Loess$x, normalizedPeriodogram, type = 'l', main='Standardized BLS periodogram (detrended and local scatter removed)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            plot(cobsxy50$x, normalizedPeriodogram, type = 'l', main='Standardized BLS periodogram (detrended and local scatter removed)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
             # Plot histogram of periodogram. Shows log-frequency on y-axis in histogram for better visualization.
             hist.data = hist(output$spec, breaks=50, plot = FALSE)
@@ -161,17 +185,17 @@ standardPeriodogram <- function(
             par(mfrow=c(2,3))
             plot(t, y, type='l', main='Original time series', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
-            plot(Loess$x, output$outpow, type = 'l', main='Original TCF periodogram and loess fit', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-            lines(Loess$x, Loess$fitted, type = 'l', col='red')
-            lines(Loess$x, scatterLoess$fitted, type = 'l', col='blue')
+            plot(cobsxy50$x, output$outpow, type = 'l', main='Original TCF periodogram and cobs fit', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            lines(cobsxy50$x, cobsxy50$fitted, type = 'l', col='red')
+            lines(cobsxy50$x, Scatter, type = 'l', col='blue')
             legend(x = "topright", lty = c(1, 1), text.font = 6,
                 col= c("red", "blue"), text.col = "black",
                 legend=c("trend fit", "local scatter fit"),
             )
 
-            plot(Loess$x, periodogramTrendRemoved, type = 'l', main='TCF periodogram (detrended)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            plot(cobsxy50$x, periodogramTrendRemoved, type = 'l', main='TCF periodogram (detrended)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
-            plot(Loess$x, normalizedPeriodogram, type = 'l', main='Standardized TCF periodogram (detrended and local scatter removed)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            plot(cobsxy50$x, normalizedPeriodogram, type = 'l', main='Standardized TCF periodogram (detrended and local scatter removed)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
             # Plot histogram of periodogram. Shows log-frequency on y-axis in histogram for better visualization.
             hist.data = hist(output$outpow, breaks=50, plot = FALSE)
