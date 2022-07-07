@@ -42,17 +42,17 @@ computeScatter <- function(
     if (algo == "BLS") {
         for (i in 1:length(cobsTrendResid)) {
             if (i <= windowLength) {
-                u = 2*windowLength+1
+                u = 2 * windowLength + 1
                 l = i + 1
                 scatterVal = IQR(c(cobsTrendResid[1:i], cobsTrendResid[l:u]))
                 scatterVals <- append(scatterVals, scatterVal)
                 next
             }
-            else if (i + windowLength >= length(cobsTrendResid) && i+1 <= windowLength) {
-                ll = length(cobsTrendResid) + 1 - 2*windowLength
-                ls = i+1
+            else if (i + windowLength >= length(cobsTrendResid)) {
+                ll = 2 * windowLength - length(cobsTrendResid) + i - 1
+                ls = i
                 us = length(cobsTrendResid)
-                scatterVal = IQR(c(cobsTrendResid[ll:i], cobsTrendResid[ls:us]))
+                scatterVal = IQR(c(cobsTrendResid[ll:i-1], cobsTrendResid[ls:us]))
                 scatterVals <- append(scatterVals, scatterVal)
                 next
             }
