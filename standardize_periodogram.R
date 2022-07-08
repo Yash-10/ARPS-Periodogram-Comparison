@@ -39,44 +39,25 @@ computeScatter <- function(
     algo="BLS"
 ){
     scatterVals = c()
-    if (algo == "BLS") {
-        for (i in 1:length(cobsTrendResid)) {
-            if (i <= windowLength) {
-                u = 2 * windowLength + 1
-                l = i + 1
-                scatterVal = IQR(c(cobsTrendResid[1:i], cobsTrendResid[l:u]))
-                scatterVals <- append(scatterVals, scatterVal)
-                next
-            }
-            else if (i + windowLength >= length(cobsTrendResid)) {
-                ll = 2 * windowLength - length(cobsTrendResid) + i - 1
-                ls = i
-                us = length(cobsTrendResid)
-                scatterVal = IQR(c(cobsTrendResid[ll:i-1], cobsTrendResid[ls:us]))
-                scatterVals <- append(scatterVals, scatterVal)
-                next
-            }
-
-            scatterVal <- IQR(cobsTrendResid[i-windowLength:i+windowLength])
+    for (i in 1:length(cobsTrendResid)) {
+        if (i <= windowLength) {
+            u = 2 * windowLength + 1 - i
+            l = i + 1
+            scatterVal = IQR(c(cobsTrendResid[1:i], cobsTrendResid[l:u]))
             scatterVals <- append(scatterVals, scatterVal)
+            next
         }
-    }
-    else if (algo == "TCF") {
-        for (i in 1:length(cobsTrendResid)) {
-            if (i <= windowLength) {
-                scatterVal = IQR(cobsTrendResid[1:windowLength])
-                scatterVals <- append(scatterVals, scatterVal)
-                next
-            }
-            else if (i + windowLength >= length(cobsTrendResid)) {
-                scatterVal = IQR(cobsTrendResid[length(cobsTrendResid)-windowLength:length(cobsTrendResid)])
-                scatterVals <- append(scatterVals, scatterVal)
-                next
-            }
-
-            scatterVal <- IQR(cobsTrendResid[i-windowLength:i+windowLength])
+        else if (i + windowLength >= length(cobsTrendResid)) {
+            ll = 2 * windowLength - length(cobsTrendResid) + i - 1
+            ls = i
+            us = length(cobsTrendResid)
+            scatterVal = IQR(c(cobsTrendResid[ll:i-1], cobsTrendResid[ls:us]))
             scatterVals <- append(scatterVals, scatterVal)
+            next
         }
+
+        scatterVal <- IQR(cobsTrendResid[i-windowLength:i+windowLength])
+        scatterVals <- append(scatterVals, scatterVal)
     }
     return (scatterVals)
 }
@@ -123,23 +104,28 @@ standardPeriodogram <- function(
 
     # (1) Remove trend in periodogram
     if (algo == "BLS") {
-        cobsxy50 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.5)  # Median regression fit.
+        cobsxy50 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.5, lambda=1)  # If tau = 0.5 => Median regression fit.
+        cobsxy501 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.9, lambda=1)
+        cobsxy502 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.99, lambda=1)
     }
-    else {
-        cobsxy50 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.5)
+    else if (algo == "TCF") {
+        cobsxy50 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.5, lambda=100)
     }
 
-    if (algo == "BLS") {
-        periodogramTrendRemoved <- cobsxy50$resid
-    }
-    else {
-        periodogramTrendRemoved <- cobsxy50$resid
-    }
+    periodogramTrendRemoved <- cobsxy50$resid
 
     # (2) Remove local scatter in periodogram
-    Scatter <- computeScatter(cobsxy50$resid, windowLength=100)
+    Scatter <- computeScatter(periodogramTrendRemoved, windowLength=50)
+    # print("Scatter")
+    # print(Scatter)
+    if (algo == "BLS") {
+        cobsScatter <- cobs(output$periodsTested, Scatter, ic='BIC', tau=0.5, lambda=1)
+    }
+    else if (algo == "TCF") {
+        cobsScatter <- cobs(periodsToTry, Scatter, ic='BIC', tau=0.5, lambda=1)
+    }
 
-    normalizedPeriodogram <- periodogramTrendRemoved / Scatter
+    normalizedPeriodogram <- periodogramTrendRemoved / cobsScatter$fitted
 
     if (algo == "BLS") {
         returnVals <- c(normalizedPeriodogram, output$periodsTested)
@@ -156,16 +142,20 @@ standardPeriodogram <- function(
 
             plot(cobsxy50$x, output$spec, type = 'l', main='Original BLS periodogram and cobs fit', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
             lines(cobsxy50$x, cobsxy50$fitted, type = 'l', col='red')
-            print(length(cobsxy50$x))
-            print(length(Scatter))
-            print(length(periodogramTrendRemoved))
-            lines(cobsxy50$x, Scatter, type = 'l', col='blue')
-            legend(x = "topright", lty = c(1, 2), text.font = 6, 
-                col= c("red", "blue"), text.col = "black", 
-                legend=c("trend fit", "local scatter fit")
+            lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='red')
+            lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='red')
+            rug(cobsxy50$knots)
+            legend(x = "topleft", lty = 1, text.font = 6, 
+                col= c("red"), text.col = "black", 
+                legend=c("trend fit (cpbs)")
             )
 
             plot(cobsxy50$x, periodogramTrendRemoved, type = 'l', main='BLS periodogram (detrended)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            lines(cobsxy50$x, cobsScatter$fitted, type = 'l', col='blue')
+            legend(x="topleft", lty=1, text.font = 6,
+                col="blue", text.col="black",
+                legend="local scatter fit (cobs)"
+            )
 
             plot(cobsxy50$x, normalizedPeriodogram, type = 'l', main='Standardized BLS periodogram (detrended and local scatter removed)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
@@ -187,13 +177,17 @@ standardPeriodogram <- function(
 
             plot(cobsxy50$x, output$outpow, type = 'l', main='Original TCF periodogram and cobs fit', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
             lines(cobsxy50$x, cobsxy50$fitted, type = 'l', col='red')
-            lines(cobsxy50$x, Scatter, type = 'l', col='blue')
-            legend(x = "topright", lty = c(1, 1), text.font = 6,
-                col= c("red", "blue"), text.col = "black",
-                legend=c("trend fit", "local scatter fit"),
+            legend(x = "topleft", lty = 1, text.font = 6, 
+                col= c("red"), text.col = "black", 
+                legend=c("trend fit (cpbs)")
             )
 
             plot(cobsxy50$x, periodogramTrendRemoved, type = 'l', main='TCF periodogram (detrended)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            lines(cobsxy50$x, cobsScatter$fitted, type = 'l', col='blue')
+            legend(x="topleft", lty=1, text.font = 6,
+                col="blue", text.col="black",
+                legend="local scatter fit (cobs)"
+            )
 
             plot(cobsxy50$x, normalizedPeriodogram, type = 'l', main='Standardized TCF periodogram (detrended and local scatter removed)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
