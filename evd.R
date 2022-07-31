@@ -11,16 +11,24 @@ statFunc <- function(a) { return (a) }
 
 evd <- function(
     y,
-    t
+    t,
+    noiseType=1  # Noise model present in y. Either 1 (white gaussian noise) or 2 (autoregressive noise). Resampling technique is dependent on this, see http://quantdevel.com/BootstrappingTimeSeriesData/BootstrappingTimeSeriesData.pdf
+    # Note: noiseType is not used for adding noise to series, but instead used for deciding the way of resampling.
 ) {
 
-    R <- 10  # No. of bootstrap resamples of the original time series.
+    R <- 100  # No. of bootstrap resamples of the original time series.
     K <- 100    # No. of distinct frequencies in a frequency bin.
-    L <- 80    # No. of distinct frequency bins.
+    L <- 50    # No. of distinct frequency bins.
 
     # (1) Bootstrap the time series.
-    # TODO: (Q) Am I resampling with replacement??
-    bootTS <- tsboot(y, statistic=statFunc, R=R, sim="fixed", l=length(y), n.sim=length(y))
+    if (noiseType == 1) {
+        bootTS <- replicate(R, replicate(length(y), sample(y, 1, replace=TRUE)))
+        bootTS <- aperm(bootTS)
+        # bootTS will be of shape (R, length(y)).
+    }
+    else {  # TODO: (Q) Am I resampling with replacement in this case?
+        bootTS <- tsboot(ts(y), statistic=statFunc, R=R, sim="fixed", l=length(y), n.sim=length(y))  # Moving-block bootstrap.
+    }
 
     # plot(bootTS$t[1,], col='red', type='l')
     # lines(bootTS$t[2,], col='black', type='l')
@@ -50,13 +58,18 @@ evd <- function(
     # (2) Max of each partial periodogram
     maxOverAll_R_samples <- c()
     for (j in 1:R) {
-        maxOfPartialPeriodograms <- c()
+        partialPeriodograms <- c()
         for (ll in 1:L) {
             freqs <- freqGrid[KLinds[ll,2]:KLinds[ll,3]]
-            partialPeriodogram <- bls(bootTS$t[j,], t, per.min=max(1/freqs), per.max=min(1/freqs), bls.plot = FALSE)
-            maxOfPartialPeriodograms <- append(maxOfPartialPeriodograms, max(partialPeriodogram$spec))
+            if (noiseType == 1) {
+                partialPeriodogram <- bls(bootTS[j,], t, per.min=max(1/freqs), per.max=min(1/freqs), bls.plot = FALSE)$spec
+            }
+            else {
+                partialPeriodogram <- bls(bootTS$t[j,], t, per.min=max(1/freqs), per.max=min(1/freqs), bls.plot = FALSE)$spec
+            }
+            partialPeriodograms <- append(partialPeriodograms, partialPeriodogram)
         }
-        maxOverAll_R_samples <- append(maxOverAll_R_samples, max(maxOfPartialPeriodograms))
+        maxOverAll_R_samples <- append(maxOverAll_R_samples, max(unlist(partialPeriodograms)))
     }
     print("Done calculating maxima...")
     print(maxOverAll_R_samples)
@@ -75,4 +88,21 @@ evd <- function(
     # return.level(fitEVD)
     # return.level(fitEVD, do.ci = TRUE)
     # ci(fitEVD, return.period = c(2, 20, 100))
+}
+
+validate1_evd <- function(
+    y,
+    t,
+    bootTS,
+    R
+) {
+    for (j in 1:R) {
+        for (i in 1:length(y)) {
+            myVec <- c(bootTS$t[j,])
+            stopifnot(exprs = {
+                y[i] %in% myVec
+            })
+            any(duplicated(myVec))  # Fine if observations in the bootstrap resamples series duplicates.
+        }
+    }
 }
