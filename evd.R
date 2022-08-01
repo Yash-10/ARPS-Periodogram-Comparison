@@ -3,6 +3,12 @@
 # http://quantdevel.com/BootstrappingTimeSeriesData/BootstrappingTimeSeriesData.pdf (About bootstrapping in time-series data).
 # http://www.ccpo.odu.edu/~klinck/Reprints/PDF/omeyHUB2009.pdf (suggested by Suveges, 2014).
 
+########### Resources for extreme value statistics ##########
+# (1) http://personal.cityu.edu.hk/xizhou/first-draft-report.pdf
+# (2) Playlist on Extreme Value Statistics: https://youtube.com/playlist?list=PLh35GyCXlQaTJtTq4OQGzMblwEcVIWW9n
+
+#################################################
+
 library('extRemes')
 library('boot')
 source('BLS/bls.R')
@@ -16,7 +22,7 @@ evd <- function(
     # Note: noiseType is not used for adding noise to series, but instead used for deciding the way of resampling.
 ) {
 
-    R <- 100  # No. of bootstrap resamples of the original time series.
+    R <- 50  # No. of bootstrap resamples of the original time series.
     K <- 100    # No. of distinct frequencies in a frequency bin.
     L <- 50    # No. of distinct frequency bins.
 
@@ -76,7 +82,9 @@ evd <- function(
     # plot(maxOverAll_R_samples, type='l')
 
     # Decluster the peaks: https://search.r-project.org/CRAN/refmans/extRemes/html/decluster.html
-    # TODO
+    # Some intution on how to choose the threshold: https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.996.914&rep=rep1&type=pdf (search for threshold - Ctrl+F - in the paper)
+    threshold <- quantile(maxOverAll_R_samples, 0.9)
+    maxOverAll_R_samples <- decluster(maxOverAll_R_samples, threshold = threshold)
 
     # (3) GEV modelling of partial maxima
     fitEVD <- fevd(maxOverAll_R_samples)
@@ -100,7 +108,7 @@ validate1_evd <- function(
         for (i in 1:length(y)) {
             myVec <- c(bootTS$t[j,])
             stopifnot(exprs = {
-                y[i] %in% myVec
+                y[i] %in% myVec  # Obviously, values in the bootstrap sample must be there in the original time series since we are sampling from it.
             })
             any(duplicated(myVec))  # Fine if observations in the bootstrap resamples series duplicates.
         }
