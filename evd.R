@@ -11,14 +11,18 @@
 
 library('extRemes')
 library('boot')
+# library('GoFKernel')
+library('cobs')
+library('EnvStats')
 source('BLS/bls.R')
+source('standardize_periodogram.R')
 
 statFunc <- function(a) { return (a) }
 
 evd <- function(
     y,
     t,
-    noiseType=1  # Noise model present in y. Either 1 (white gaussian noise) or 2 (autoregressive noise). Resampling technique is dependent on this, see http://quantdevel.com/BootstrappingTimeSeriesData/BootstrappingTimeSeriesData.pdf
+    noiseType=1,  # Noise model present in y. Either 1 (white gaussian noise) or 2 (autoregressive noise). Resampling technique is dependent on this, see http://quantdevel.com/BootstrappingTimeSeriesData/BootstrappingTimeSeriesData.pdf
     # Note: noiseType is not used for adding noise to series, but instead used for deciding the way of resampling.
 ) {
 
@@ -62,6 +66,7 @@ evd <- function(
     print(KLinds)
 
     # (2) Max of each partial periodogram
+    # TODO: Need to use standardization/normalization somewhere! See astropy _statistics module under LombScargle to know at which step to normalize -- should we normalize these bootstrap periodograms or only the final full periodogram.
     maxOverAll_R_samples <- c()
     for (j in 1:R) {
         partialPeriodograms <- c()
@@ -69,9 +74,11 @@ evd <- function(
             freqs <- freqGrid[KLinds[ll,2]:KLinds[ll,3]]
             if (noiseType == 1) {
                 partialPeriodogram <- bls(bootTS[j,], t, per.min=max(1/freqs), per.max=min(1/freqs), bls.plot = FALSE)$spec
+                # partialPeriodogram <- standardPeriodogram(bootTS[j,], t, perMin=max(1/freqs), perMax=min(1/freqs), plot = FALSE, noiseType=noiseType)[1]
             }
             else {
                 partialPeriodogram <- bls(bootTS$t[j,], t, per.min=max(1/freqs), per.max=min(1/freqs), bls.plot = FALSE)$spec
+                # partialPeriodogram <- standardPeriodogram(bootTS[j,], t, perMin=max(1/freqs), perMax=min(1/freqs), plot = FALSE, noiseType=noiseType)[1]
             }
             partialPeriodograms <- append(partialPeriodograms, partialPeriodogram)
         }
@@ -83,19 +90,37 @@ evd <- function(
 
     # Decluster the peaks: https://search.r-project.org/CRAN/refmans/extRemes/html/decluster.html
     # Some intution on how to choose the threshold: https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.996.914&rep=rep1&type=pdf (search for threshold - Ctrl+F - in the paper)
-    threshold <- quantile(maxOverAll_R_samples, 0.9)
+    threshold <- quantile(maxOverAll_R_samples, 0.75)  # TODO: How to choose best threshold?
     maxOverAll_R_samples <- decluster(maxOverAll_R_samples, threshold = threshold)
 
     # (3) GEV modelling of partial maxima
-    fitEVD <- fevd(maxOverAll_R_samples)
+    fitEVD <- fevd(maxOverAll_R_samples, type='GEV')
+    # See https://www.dataanalysisclassroom.com/lesson60/ for discussion on the fevd function.
+    print(summary(fitEVD))
     distill(fitEVD)
 
     # Diagnostic plots.
-    plot(fitEVD)
+    # TODO: Why ci fails sometimes?
+    # plot(fitEVD)
     # plot(fitEVD, "trace")
     # return.level(fitEVD)
     # return.level(fitEVD, do.ci = TRUE)
     # ci(fitEVD, return.period = c(2, 20, 100))
+    # See some description on how ci's are calculated: https://reliability.readthedocs.io/en/latest/How%20are%20the%20confidence%20intervals%20calculated.html
+
+    # (4) Extrapolation to full periodogram
+    ## Get the parameters
+    location <- findpars(fitEVD)$location[1]  # For some reason, the parameter values repeat 10 times, and all are same. So extract the first.
+    scale <- findpars(fitEVD)$scale[1]
+    shape <- findpars(fitEVD)$shape[1]
+
+    ## Important note: It would be better to find an automatic way to judge whether we want to select a GEV model or not, instead of manually looking at the diagnostic plots. This is because we want to apply this method on several periodograms.
+
+    # TODO: Use the estimated loc, scale and shape.
+    # Compute full periodogram
+    output <- bls(y, t, bls.plot = FALSE, per.min=perMin, per.max=perMax)$spec
+    fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
+    sprintf("FAP: %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L))  # This formula is from Suveges, 2014.
 }
 
 validate1_evd <- function(
@@ -114,3 +139,7 @@ validate1_evd <- function(
         }
     }
 }
+
+
+################# Questions not yet understood by me ##################
+# (1) What is "high quantiles of a distribution"? See online where mainly talk about heavy-tailed distributions..
