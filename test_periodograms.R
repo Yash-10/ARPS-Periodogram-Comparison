@@ -1,6 +1,7 @@
 source('standardize_periodogram.R')
+library(moments)
 
-test <- function(
+getLightCurve <- function(
     period,  # What period (in days) do you want to have in your light curve, will be a single value. eg: 1/3/5/7/9.
     depth,  # What depth (in % of the star's presumed constant level which is 1) do you want to have in your light curve, will be a vector. eg: 0.01/0.05/0.1/0.15/0.2.
     duration,  # What transit duration (as a fraction of the period) do you want to have in your light curve. eg: 1/24.
@@ -10,7 +11,7 @@ test <- function(
     ### VIMP note: While giving inputs, never give a period like 1 since duration would be a fraction of 1 which is a float number and since the code rounds the result, results might not be correct.
     ### To prevent such issues, if your `duration` is, say, 1/24 times the period (eg: 1 hr duration for a 1 day period), then pass period = 24 and duration = 1/24 instead of period = 1 and duration = 1/24.
     algo="BLS"  # or "TCF"
-){
+) {
     stopifnot(exprs = {
         period > 0
         depth >= 0
@@ -52,13 +53,20 @@ test <- function(
 
     if (noiseType == 1) {
         set.seed(1)
-        y <- y + rnorm(length(y), mean = 0, sd = 0.0005)  # 0.01% Gaussian noise.
+        y <- y + rnorm(length(y), mean = 0, sd = 0.000375)  # 0.01% Gaussian noise.
     }
     else if (noiseType == 2) {
         set.seed(1)
         autoRegNoise <- arima.sim(model = list(order=c(1, 0, 1), ar=0.2, ma=0.2), n = length(y))  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
         y <- y + autoRegNoise
     }
+
+    # Print some things
+    print(noquote(paste("Period = ", sprintf("%.3f", period))))
+    print(noquote(paste("Depth = ", sprintf("%.3f", (depth / 100) * 1))))
+    print(noquote(paste("Transit duration = ", sprintf("%.3f", inTransitTime))))
+
+    return (list(y, t))
 
     # # Add noise to time series, if any.
     # if (noiseType == 1) {
@@ -70,14 +78,24 @@ test <- function(
     #     autoRegNoise <- arima.sim(model = list(order=c(1, 0, 1), ar=0.2, ma=0.2), n = length(y))  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
     #     y <- y + autoRegNoise
     # }
+}
 
-    # Print some things
-    print(noquote(paste("Period = ", sprintf("%.3f", period))))
-    print(noquote(paste("Depth = ", sprintf("%.3f", (depth / 100) * 1))))
-    print(noquote(paste("Transit duration = ", sprintf("%.3f", inTransitTime))))
+getStandardPeriodogram <- function(
+    period,  # What period (in days) do you want to have in your light curve, will be a single value. eg: 1/3/5/7/9.
+    depth,  # What depth (in % of the star's presumed constant level which is 1) do you want to have in your light curve, will be a vector. eg: 0.01/0.05/0.1/0.15/0.2.
+    duration,  # What transit duration (as a fraction of the period) do you want to have in your light curve. eg: 1/24.
+    # Note: The definition of transit duration used in the code is how many points there are at the in-transit level whereas in astronomy it is, how many points are there before you reach the constant value again taking into account points in going from 1 --> inTransitValue.
+    noiseType=0,  # 1 --> Gaussian noise, 2 --> Autoregressive noise. If autoregressive noise, (1, 0, 1) model is used. To change it, need to change the source code.
+    ntransits=10,  # No. of transits in the whole time series. Note: It must be >=3, otherwise BLS/TCF matching filter periodograms might not work.
+    ### VIMP note: While giving inputs, never give a period like 1 since duration would be a fraction of 1 which is a float number and since the code rounds the result, results might not be correct.
+    ### To prevent such issues, if your `duration` is, say, 1/24 times the period (eg: 1 hr duration for a 1 day period), then pass period = 24 and duration = 1/24 instead of period = 1 and duration = 1/24.
+    algo="BLS"  # or "TCF"
+){
 
-    # plot(t[100:300], y[100:300], type="l", main=sprintf("period: %.3f days, depth: %.3f (pct), duration: %.3f (hrs)", period, depth, period * 24 * duration))
-    output <- standardPeriodogram(y, t, period, depth, duration, algo=algo, noiseType = 0)  # 0 noise type we add custom noise in this function, so we should not add it again.
+    yt <- getLightCurve(period, depth, duration, noiseType=0, ntransits=10, algo="BLS")
+
+    output <- standardPeriodogram(unlist(yt[1]), unlist(yt[2]), period, depth, duration, algo=algo, noiseType = 0, plot=FALSE)  # 0 noise type we add custom noise in this function, so we should not add it again.
+    return (output);
 }
 
 extensiveTest <- function(

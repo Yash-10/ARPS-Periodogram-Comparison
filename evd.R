@@ -16,19 +16,28 @@ library('cobs')
 library('EnvStats')
 source('BLS/bls.R')
 source('standardize_periodogram.R')
+source('test_periodograms.R')
 
 statFunc <- function(a) { return (a) }
 
 evd <- function(
-    y,
-    t,
+    period,
+    depth,
+    duration,
     noiseType=1,  # Noise model present in y. Either 1 (white gaussian noise) or 2 (autoregressive noise). Resampling technique is dependent on this, see http://quantdevel.com/BootstrappingTimeSeriesData/BootstrappingTimeSeriesData.pdf
     # Note: noiseType is not used for adding noise to series, but instead used for deciding the way of resampling.
+    algo="BLS",  # TODO: Add support for TCF
+    ntransits=10
 ) {
 
-    R <- 50  # No. of bootstrap resamples of the original time series.
+    R <- 1000  # No. of bootstrap resamples of the original time series.
     K <- 100    # No. of distinct frequencies in a frequency bin.
     L <- 50    # No. of distinct frequency bins.
+
+    # Generate light curve using the parameters.
+    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, algo=algo, ntransits=ntransits)
+    y <- unlist(yt[1])
+    t <- unlist(yt[2])
 
     # (1) Bootstrap the time series.
     if (noiseType == 1) {
@@ -73,11 +82,14 @@ evd <- function(
         for (ll in 1:L) {
             freqs <- freqGrid[KLinds[ll,2]:KLinds[ll,3]]
             if (noiseType == 1) {
-                partialPeriodogram <- bls(bootTS[j,], t, per.min=max(1/freqs), per.max=min(1/freqs), bls.plot = FALSE)$spec
+                # TODO: Decide whether to use standardize or normal periodogram only for the partial ones?
+                partialPeriodogram <- bls(bootTS[j,], t, per.min=min(1/freqs), per.max=max(1/freqs), nper=K, bls.plot = FALSE)$spec
+                # plot(partialPeriodogram, type='l')
+                # return (1);
                 # partialPeriodogram <- standardPeriodogram(bootTS[j,], t, perMin=max(1/freqs), perMax=min(1/freqs), plot = FALSE, noiseType=noiseType)[1]
             }
             else {
-                partialPeriodogram <- bls(bootTS$t[j,], t, per.min=max(1/freqs), per.max=min(1/freqs), bls.plot = FALSE)$spec
+                partialPeriodogram <- bls(bootTS$t[j,], t, per.min=min(1/freqs), per.max=max(1/freqs), nper=K, bls.plot = FALSE)$spec
                 # partialPeriodogram <- standardPeriodogram(bootTS[j,], t, perMin=max(1/freqs), perMax=min(1/freqs), plot = FALSE, noiseType=noiseType)[1]
             }
             partialPeriodograms <- append(partialPeriodograms, partialPeriodogram)
@@ -101,7 +113,7 @@ evd <- function(
 
     # Diagnostic plots.
     # TODO: Why ci fails sometimes?
-    # plot(fitEVD)
+    try(plot(fitEVD))
     # plot(fitEVD, "trace")
     # return.level(fitEVD)
     # return.level(fitEVD, do.ci = TRUE)
@@ -109,6 +121,7 @@ evd <- function(
     # See some description on how ci's are calculated: https://reliability.readthedocs.io/en/latest/How%20are%20the%20confidence%20intervals%20calculated.html
 
     # (4) Extrapolation to full periodogram
+    print("Extrapolating to full periodogram...")
     ## Get the parameters
     location <- findpars(fitEVD)$location[1]  # For some reason, the parameter values repeat 10 times, and all are same. So extract the first.
     scale <- findpars(fitEVD)$scale[1]
@@ -116,11 +129,19 @@ evd <- function(
 
     ## Important note: It would be better to find an automatic way to judge whether we want to select a GEV model or not, instead of manually looking at the diagnostic plots. This is because we want to apply this method on several periodograms.
 
-    # TODO: Use the estimated loc, scale and shape.
-    # Compute full periodogram
-    output <- bls(y, t, bls.plot = FALSE, per.min=perMin, per.max=perMax)$spec
+    # Compute full periodogram (note: standardized periodogram is used).
+    # output <- bls(y, t, bls.plot = FALSE)$spec
+    output <- getStandardPeriodogram(period, depth, duration, noiseType=noiseType, algo=algo, ntransits=ntransits)[1]
     fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
-    sprintf("FAP: %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L))  # This formula is from Suveges, 2014.
+    print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))  # This formula is from Suveges, 2014.
+
+    output <- bls(y, t, bls.plot = FALSE)$spec
+    fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
+    print(sprintf("FAP (original periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))
+
+    ###### Interpreting what FAP is good (from Baluev: https://academic.oup.com/mnras/article/385/3/1279/1010111):
+    # > Given some small critical value FAP* (usually between 10−3 and 0.1), we can claim that the candidate signal is statistically
+    # significant (if FAP < FAP*) or is not (if FAP > FAP*)
 }
 
 validate1_evd <- function(

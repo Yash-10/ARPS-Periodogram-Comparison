@@ -1,6 +1,6 @@
-#################################################################
+##########################################################################################################
 ## To run, do source(bls.R) and source(norm_bls_periodogram.R) if using BLS, and similarly if using TCF ##
-#################################################################
+##########################################################################################################
 
 # # Below cv function from https://rpubs.com/mengxu/loess_cv
 # library(bootstrap)
@@ -33,6 +33,8 @@
 #   return(best.model)
 # }
 
+library(moments)
+
 computeScatter <- function(
     cobsTrendResid,
     windowLength=1000,  # window length on one side of the focal point.
@@ -41,23 +43,28 @@ computeScatter <- function(
     scatterVals = c()
     for (i in 1:length(cobsTrendResid)) {
         if (i <= windowLength) {
-            u = 2 * windowLength + 1 - i
+            u = 2 * windowLength + 1
             l = i + 1
             scatterVal = IQR(c(cobsTrendResid[1:i], cobsTrendResid[l:u]))
+            # print(length(c(cobsTrendResid[1:i], cobsTrendResid[l:u])))
             scatterVals <- append(scatterVals, scatterVal)
-            next
         }
         else if (i + windowLength >= length(cobsTrendResid)) {
-            ll = 2 * windowLength - length(cobsTrendResid) + i - 1
+            ll = i - 2 * windowLength - i + length(cobsTrendResid)
+            ul = i - 1
             ls = i
             us = length(cobsTrendResid)
-            scatterVal = IQR(c(cobsTrendResid[ll:i-1], cobsTrendResid[ls:us]))
+            # print(length(c(cobsTrendResid[ll:ul], cobsTrendResid[ls:us])))
+            scatterVal = IQR(c(cobsTrendResid[ll:ul], cobsTrendResid[ls:us]))
             scatterVals <- append(scatterVals, scatterVal)
-            next
         }
-
-        scatterVal <- IQR(cobsTrendResid[i-windowLength:i+windowLength])
-        scatterVals <- append(scatterVals, scatterVal)
+        else {
+            l_ = i-windowLength
+            u_ = i+windowLength
+            # print(length(cobsTrendResid[l_:u_]))
+            scatterVal <- IQR(cobsTrendResid[l_:u_])
+            scatterVals <- append(scatterVals, scatterVal)
+        }
     }
     return (scatterVals)
 }
@@ -65,10 +72,16 @@ computeScatter <- function(
 standardPeriodogram <- function(
     y,  # time series values
     t,  # time
+    ### NOTE: period, depth, and duration are only taken as inputs for plotting -- not used anywhere else. Remove them if you do not want, but then change the "main" argument to "plot" below.
+    period,
+    depth,
+    duration,
     noiseType = 0,  # 0 for no noise, 1 for white Gaussian noise, and 2 for autoregressive noise (if 2, the ARMA model is internally fixed; also no differencing is used, so it assumes the time-series is stationary or already differenced.)
     algo = "BLS",  # or "TCF"
     windowLength=100,
-    plot = TRUE
+    plot = TRUE,
+    perMin=t[3]-t[1],
+    perMax=t[length(t)]-t[1]
 ){
     if (noiseType == 1) {
         set.seed(1)
@@ -88,7 +101,7 @@ standardPeriodogram <- function(
     # f = seq(freq.min,by=freq.step,length.out=nfreq)
     # per = 1/f
     if (algo == "BLS") {
-        output <- bls(y, t, bls.plot = FALSE)
+        output <- bls(y, t, bls.plot = FALSE, per.min=perMin, per.max=perMax)
     }
     else {
         perMin = t[3] - t[1]
@@ -104,26 +117,36 @@ standardPeriodogram <- function(
 
     # (1) Remove trend in periodogram
     if (algo == "BLS") {
-        cobsxy50 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.5, lambda=1)  # If tau = 0.5 => Median regression fit.
-        cobsxy501 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.9, lambda=1)
-        cobsxy502 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.99, lambda=1)
+        lambdaTrend <- 1
+        cobsxy50 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")  # If tau = 0.5 and lambda = 0 => Median regression fit.
+        cobsxy501 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.9, lambda=lambdaTrend, constraint="increase")
+        cobsxy502 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.99, lambda=lambdaTrend)
     }
     else if (algo == "TCF") {
-        cobsxy50 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.5, lambda=100)
+        lambdaTrend <- 1
+        cobsxy50 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")
+        cobsxy501 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.9, lambda=lambdaTrend, constraint="increase")
+        cobsxy502 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.99, lambda=lambdaTrend)
     }
 
     periodogramTrendRemoved <- cobsxy50$resid
 
     # (2) Remove local scatter in periodogram
-    Scatter <- computeScatter(periodogramTrendRemoved, windowLength=50)
+    scatterWindowLength <- 3000
+    Scatter <- computeScatter(periodogramTrendRemoved, windowLength=scatterWindowLength)
     # print("Scatter")
-    # print(Scatter)
     if (algo == "BLS") {
-        cobsScatter <- cobs(output$periodsTested, Scatter, ic='BIC', tau=0.5, lambda=1)
+        lambdaScatter <- 1
+        cobsScatter <- cobs(output$periodsTested, Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
     }
     else if (algo == "TCF") {
-        cobsScatter <- cobs(periodsToTry, Scatter, ic='BIC', tau=0.5, lambda=1)
+        lambdaScatter <- 1
+        cobsScatter <- cobs(periodsToTry, Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
     }
+
+    # plot(output$periodsTested[1:200], Scatter[1:200], type='l')
+    # lines(output$periodsTested[1:200], cobsScatter$fitted[1:200], col='red', type='l')
+    # return (1);
 
     normalizedPeriodogram <- periodogramTrendRemoved / cobsScatter$fitted
 
@@ -137,66 +160,131 @@ standardPeriodogram <- function(
     if (plot) {
         if (algo == "BLS") {
             cexVal = 1.7
-            par(mfrow=c(2,3))
-            plot(t, y, type='l', main='Original time series', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
-            plot(cobsxy50$x, output$spec, type = 'l', main='Original BLS periodogram and cobs fit', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-            lines(cobsxy50$x, cobsxy50$fitted, type = 'l', col='red')
-            lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='red')
-            lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='red')
-            rug(cobsxy50$knots)
-            legend(x = "topleft", lty = 1, text.font = 6, 
-                col= c("red"), text.col = "black", 
-                legend=c("trend fit (cpbs)")
+            mat1 <- matrix(c(
+                1, 3, 4,
+                2, 3, 4,
+                5, 6, 7,
+                5, 6, 7), nrow = 4, ncol = 3, byrow = TRUE
             )
 
-            plot(cobsxy50$x, periodogramTrendRemoved, type = 'l', main='BLS periodogram (detrended)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            layout(mat = mat1,
+                heights = c(1),    # Heights of the two rows
+                widths = c(1)
+            )     # Widths of the two columns
+
+            plot(t, y, type='l', main=sprintf("period: %.3f days, depth: %.3f (pct), duration: %.3f (hrs)", period, depth, period * 24 * duration), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)')
+            acfEstimate <- acf(y, plot = FALSE)
+            lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
+            plot(acfEstimate, main=sprintf("P(Ljung-Box) = %s", lJStats[3]), cex=2)
+
+            plot(cobsxy50$x, output$spec, type = 'l', main=sprintf("Original BLS periodogram and cobs fit, lambdaTrend=%d", lambdaTrend), log='x', xlab='log Period (hrs)', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            lines(cobsxy50$x, cobsxy50$fitted, type = 'l', col='red')
+            lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
+            lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
+            rug(cobsxy50$knots)
+            legend(x = "topleft", lty = 1, text.font = 6, 
+                col= c("red", "cyan", "magenta"), text.col = "black", 
+                legend=c("trend fit", "tau=0.9", "tau=0.99")
+            )
+
+            plot(cobsxy50$x, periodogramTrendRemoved, type = 'l', main=sprintf("BLS periodogram (detrended), lamScatter=%d, windowLength=%d", lambdaScatter, scatterWindowLength), log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
             lines(cobsxy50$x, cobsScatter$fitted, type = 'l', col='blue')
+            # lines(cobsxy50$x, Scatter, type = 'l', col='red')
             legend(x="topleft", lty=1, text.font = 6,
                 col="blue", text.col="black",
-                legend="local scatter fit (cobs)"
+                legend="local scatter fit"
             )
 
             plot(cobsxy50$x, normalizedPeriodogram, type = 'l', main='Standardized BLS periodogram (detrended and local scatter removed)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
             # Plot histogram of periodogram. Shows log-frequency on y-axis in histogram for better visualization.
             hist.data = hist(output$spec, breaks=50, plot = FALSE)
-            plot(hist.data$count, type='h', log='y', main='Original BLS periodogram Histogram', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-            hist.data = hist(normalizedPeriodogram, breaks=50, plot = FALSE)
-            plot(hist.data$count, type='h', log='y', main="Standardized BLS periodogram Histogram", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
+            # Compute skewness and kurtosis of the original and standardized histograms.
+            ### Refer https://brownmath.com/stat/shape.htm for more information ###
+            ### Note: R does NOT compute the "excess kurtosis".
+            # The kurtosis is calculated as follows:
+            # ```
+            # n <- length(x)
+            # n * sum((x - mean(x))^4)/(sum((x - mean(x))^2)^2)
+            # ``` Taken from https://stackoverflow.com/a/21484052
+            SkewnessBefore <- skewness(output$spec)
+            KurtosisBefore <- kurtosis(output$spec)
+
+            plot(hist.data$count, type='h', log='y', main=sprintf('Original BLS periodogram histogram:\nskewness: %.3f, kurtosis: %.3f', SkewnessBefore, KurtosisBefore), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+            axis(1, at=1:length(hist.data$mids), labels=hist.data$mids)
+            
+            SkewnessAfter <- skewness(normalizedPeriodogram)
+            KurtosisAfter <- kurtosis(normalizedPeriodogram)
+
+            hist.data = hist(normalizedPeriodogram, breaks=50, plot = FALSE)
+            plot(hist.data$count, type='h', log='y', main=sprintf("Standardized BLS periodogram histogram:\nskewness: %.3f, kurtosis: %.3f", SkewnessAfter, KurtosisAfter), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+            axis(1, at=1:length(hist.data$mids), labels=hist.data$mids)
             # hist.data = hist(output$spec, breaks=50, plot=FALSE)
             # plot(hist.data$count, type='h', log='y', main='Original BLS periodogram Histogram')
             # hist.data = hist(normalizedBLS, breaks=50, plot=FALSE)
             # plot(hist.data$count, type='h', log='y', main='Standardized BLS periodogram Histogram')
         }
         else {
-            cexVal = 1.7  # TODO: Make it work
-            par(mfrow=c(2,3))
-            plot(t, y, type='l', main='Original time series', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            cexVal = 1.7
 
-            plot(cobsxy50$x, output$outpow, type = 'l', main='Original TCF periodogram and cobs fit', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-            lines(cobsxy50$x, cobsxy50$fitted, type = 'l', col='red')
-            legend(x = "topleft", lty = 1, text.font = 6, 
-                col= c("red"), text.col = "black", 
-                legend=c("trend fit (cpbs)")
+            mat1 <- matrix(c(
+                1, 3, 4,
+                2, 3, 4,
+                5, 6, 7,
+                5, 6, 7), nrow = 4, ncol = 3, byrow = TRUE
             )
 
-            plot(cobsxy50$x, periodogramTrendRemoved, type = 'l', main='TCF periodogram (detrended)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            layout(mat = mat1,
+                heights = c(1),    # Heights of the two rows
+                widths = c(1)
+            )     # Widths of the two columns
+
+            plot(t, y, type='l', main=sprintf("period: %.3f days, depth: %.3f (pct), duration: %.3f (hrs)", period, depth, period * 24 * duration), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)')
+            acfEstimate <- acf(y, plot = FALSE)
+            lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
+            plot(acfEstimate, main=sprintf("P(Ljung-Box) = %s", lJStats[3]), cex=2)
+
+            # Note that when I write log period, I mean period on log-scale rather than log of the period.
+            plot(cobsxy50$x, output$outpow, type = 'l', main=sprintf("Original TCF periodogram and cobs fit, lambdaTrend=%d", lambdaTrend), log='x', xlab='log Period (hrs)', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            lines(cobsxy50$x, cobsxy50$fitted, type = 'l', col='red')
+            lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
+            lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
+            rug(cobsxy50$knots)
+            legend(x = "topleft", lty = 1, text.font = 6, 
+                col= c("red", "cyan", "magenta"), text.col = "black", 
+                legend=c("trend fit", "tau=0.9", "tau=0.99")
+            )
+
+            plot(cobsxy50$x, periodogramTrendRemoved, type = 'l', main=sprintf("TCF periodogram (detrended), lamScatter=%d, windowLength=%d", lambdaScatter, scatterWindowLength), log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
             lines(cobsxy50$x, cobsScatter$fitted, type = 'l', col='blue')
             legend(x="topleft", lty=1, text.font = 6,
                 col="blue", text.col="black",
-                legend="local scatter fit (cobs)"
+                legend="local scatter fit"
             )
 
             plot(cobsxy50$x, normalizedPeriodogram, type = 'l', main='Standardized TCF periodogram (detrended and local scatter removed)', log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
             # Plot histogram of periodogram. Shows log-frequency on y-axis in histogram for better visualization.
-            hist.data = hist(output$outpow, breaks=50, plot = FALSE)
-            plot(hist.data$count, type='h', log='y', main='Original TCF periodogram Histogram', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-            hist.data = hist(normalizedPeriodogram, breaks=50, plot = FALSE)
-            plot(hist.data$count, type='h', log='y', main="Standardized TCF periodogram Histogram", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            hist.data = hist(output$spec, breaks=50, plot = FALSE)
 
+            # Compute skewness and kurtosis of the original and standardized histograms.
+            ### Refer https://brownmath.com/stat/shape.htm for more information ###
+            sampleSkewnessBefore <- skewness(output$spec)  # Note: I assume, like Excel, R also computes the sample skewness rather than population skewness.
+            sampleKurtosisBefore <- kurtosis(output$spec)
+
+            plot(hist.data$count, type='h', log='y', main=sprintf('Original TCF periodogram histogram:\nskewness: %.3f, kurtosis: %.3f', sampleSkewnessBefore, sampleKurtosisBefore), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+            axis(1, at=1:length(hist.data$mids), labels=hist.data$mids)
+            
+            SkewnessAfter <- skewness(normalizedPeriodogram)
+            KurtosisAfter <- kurtosis(normalizedPeriodogram)
+
+            hist.data = hist(normalizedPeriodogram, breaks=50, plot = FALSE)
+            plot(hist.data$count, type='h', log='y', main=sprintf("Standardized TCF periodogram histogram:\nskewness: %.3f, kurtosis: %.3f", SkewnessAfter, KurtosisAfter), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+            axis(1, at=1:length(hist.data$mids), labels=hist.data$mids)
+            
+            # Plot histogram of periodogram. Shows log-frequency on y-axis in histogram for better visualization.
             # hist.data = hist(output$outpow, breaks=50, plot=FALSE)
             # plot(hist.data$count, type='h', log='y', main='Original TCF periodogram Histogram')
             # hist.data = hist(normalizedTCF, breaks=50, plot=FALSE)
