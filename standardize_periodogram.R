@@ -81,7 +81,8 @@ standardPeriodogram <- function(
     windowLength=100,
     plot = TRUE,
     perMin=t[3]-t[1],
-    perMax=t[length(t)]-t[1]
+    perMax=t[length(t)]-t[1],
+    nper=length(t)*10
 ){
     if (noiseType == 1) {
         set.seed(1)
@@ -101,7 +102,7 @@ standardPeriodogram <- function(
     # f = seq(freq.min,by=freq.step,length.out=nfreq)
     # per = 1/f
     if (algo == "BLS") {
-        output <- bls(y, t, bls.plot = FALSE, per.min=perMin, per.max=perMax)
+        output <- bls(y, t, bls.plot = FALSE, per.min=perMin, per.max=perMax, nper=nper)
     }
     else {
         perMin = t[3] - t[1]
@@ -151,10 +152,10 @@ standardPeriodogram <- function(
     normalizedPeriodogram <- periodogramTrendRemoved / cobsScatter$fitted
 
     if (algo == "BLS") {
-        returnVals <- c(normalizedPeriodogram, output$periodsTested)
+        returnVals <- list(normalizedPeriodogram, output$periodsTested)
     }
     else {
-        returnVals <- c(normalizedPeriodogram, periodsToTry)
+        returnVals <- list(normalizedPeriodogram, periodsToTry)
     }
 
     if (plot) {
