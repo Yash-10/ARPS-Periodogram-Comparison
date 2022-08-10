@@ -2,10 +2,14 @@
 ############## IMPORTANT REFERENCES #############
 # http://quantdevel.com/BootstrappingTimeSeriesData/BootstrappingTimeSeriesData.pdf (About bootstrapping in time-series data).
 # http://www.ccpo.odu.edu/~klinck/Reprints/PDF/omeyHUB2009.pdf (suggested by Suveges, 2014).
+# See about aliasing at the end of this page, for example: https://docs.gammapy.org/0.8/time/period.html and this also: https://hea-www.harvard.edu/~swolk/thesis/period/node5.html
 
 ########### Resources for extreme value statistics ##########
 # (1) http://personal.cityu.edu.hk/xizhou/first-draft-report.pdf
 # (2) Playlist on Extreme Value Statistics: https://youtube.com/playlist?list=PLh35GyCXlQaTJtTq4OQGzMblwEcVIWW9n
+
+#############################################################
+# Good set of papers: https://arxiv.org/pdf/1712.00734.pdf
 
 #################################################
 
@@ -27,8 +31,9 @@ evd <- function(
     duration,
     noiseType=1,  # Noise model present in y. Either 1 (white gaussian noise) or 2 (autoregressive noise). Resampling technique is dependent on this, see http://quantdevel.com/BootstrappingTimeSeriesData/BootstrappingTimeSeriesData.pdf
     # Note: noiseType is not used for adding noise to series, but instead used for deciding the way of resampling.
-    algo="BLS",  # TODO: Add support for TCF
-    ntransits=10
+    algo="BLS",
+    ntransits=10,
+    plot = TRUE
 ) {
 
     R <- 1000  # No. of bootstrap resamples of the original time series.
@@ -41,16 +46,20 @@ evd <- function(
     t <- unlist(yt[2])
 
     # (1) Bootstrap the time series.
+    # Non-parametric bootstrap with replacement.
     if (noiseType == 1) {
         bootTS <- replicate(R, replicate(length(y), sample(y, 1, replace=TRUE)))
         bootTS <- aperm(bootTS)
         # bootTS will be of shape (R, length(y)).
     }
-    else {  # TODO: (Q) Am I resampling with replacement in this case?
+    else if (noiseType == 2) {  # 2 means autoregressive noise.  # TODO: (Q) Am I resampling with replacement in this case?
+        # TODO: Need to implement this correctly.
         bootTS <- tsboot(ts(y), statistic=statFunc, R=R, sim="fixed", l=length(y), n.sim=length(y))  # Moving-block bootstrap.
     }
 
     ### Create a frequency grid.
+    # TODO: Currently, both BLS and TCF use uniform frequency sampling. Ofir, 2014 suggested to use the optimal frequency sampling, so try to use it instead?
+    # Note that the fact that we uniformly sample in "frequency" rather than "period" is itself a good choice: see last para in sec 7.1 in https://iopscience.iop.org/article/10.3847/1538-4365/aab766/pdf
     perMin <- t[3] - t[1]
     perMax <- t[length(t)] - t[1]
     freqMin <- 1 / perMax
@@ -74,9 +83,7 @@ evd <- function(
     startOfBin <- cumsum(distances) + (0:(nBins-1)) * 101
     KLinds<- data.frame(bin = 1:nBins, startOfBin = startOfBin, endOfBin = startOfBin + binWidth - 1)
 
-    print(KLinds)
-
-    # TODO: Currently, both BLS and TCF use uniform frequency sampling. Ofir, 2014 suggested to use the optimal frequency sampling, so try to use it instead?
+    # print(KLinds)
 
     # (2) Max of each partial periodogram
     # TODO: Need to use standardization/normalization somewhere! See astropy _statistics module under LombScargle to know at which step to normalize -- should we normalize these bootstrap periodograms or only the final full periodogram.
@@ -103,28 +110,32 @@ evd <- function(
         maxOverAll_R_samples <- append(maxOverAll_R_samples, max(unlist(partialPeriodograms)))
     }
     print("Done calculating maxima...")
-    print(maxOverAll_R_samples)
+    # print(maxOverAll_R_samples)
     # plot(maxOverAll_R_samples, type='l')
 
     # Decluster the peaks: https://search.r-project.org/CRAN/refmans/extRemes/html/decluster.html
     # Some intution on how to choose the threshold: https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.996.914&rep=rep1&type=pdf (search for threshold - Ctrl+F - in the paper)
+    # See section 5.3.2 in Coles, 2001 to see why declustering is needed: Extremes tend to cluster themselves and tend to occur in groups. Note that log-likelihood can be decomposed into a product of individual marginal distribution functions only under iid. So declustering "tries" to make them independent to prevent the violation of the iid assumption while fitting the GEV model below.
+    # In short, declustering (approximately) solves the dependence issue of extremes.
     threshold <- quantile(maxOverAll_R_samples, 0.75)  # TODO: How to choose best threshold?
     maxOverAll_R_samples <- decluster(maxOverAll_R_samples, threshold = threshold)
 
-    # (3) GEV modelling of partial maxima
+    # (3) GEV modelling of partial periodograms' maxima
     fitEVD <- fevd(maxOverAll_R_samples, type='GEV')
     # See https://www.dataanalysisclassroom.com/lesson60/ for discussion on the fevd function.
     print(summary(fitEVD))
     distill(fitEVD)
 
     # Diagnostic plots.
-    # TODO: Why ci fails sometimes?
-    try(plot(fitEVD))
-    # plot(fitEVD, "trace")
-    # return.level(fitEVD)
-    # return.level(fitEVD, do.ci = TRUE)
-    # ci(fitEVD, return.period = c(2, 20, 100))
-    # See some description on how ci's are calculated: https://reliability.readthedocs.io/en/latest/How%20are%20the%20confidence%20intervals%20calculated.html
+    if (plot) {
+        # TODO: Why ci fails sometimes?
+        try(plot(fitEVD))
+        # plot(fitEVD, "trace")
+        # return.level(fitEVD)
+        # return.level(fitEVD, do.ci = TRUE)
+        # ci(fitEVD, return.period = c(2, 20, 100))
+        # See some description on how ci's are calculated: https://reliability.readthedocs.io/en/latest/How%20are%20the%20confidence%20intervals%20calculated.html
+    }
 
     # (4) Extrapolation to full periodogram
     print("Extrapolating to full periodogram...")
@@ -150,12 +161,13 @@ evd <- function(
         output <- bls(y, t, bls.plot = FALSE)$spec
 
         # Verify that the period corresponding to the largest peak in standardized periodogram is the same as in original periodogram.
-        stopifnot(exprs={
-            all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
-        })
+        # stopifnot(exprs={
+        #     all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
+        # })
 
         fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
-        print(sprintf("FAP (original periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))
+        fap <- nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)
+        print(sprintf("FAP (original periodogram): %f", fap))
     }
     else {
         op <- getStandardPeriodogram(period, depth, duration, noiseType=noiseType, algo=algo, ntransits=ntransits)
@@ -176,16 +188,19 @@ evd <- function(
         periodsToTry = 1 / f
         output <- tcf(y, p.try = periodsToTry, print.output = FALSE)$outpow
 
-        stopifnot(exprs={
-            all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
-        })
+        # stopifnot(exprs={
+        #     all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
+        # })
 
         fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
-        print(sprintf("FAP (original periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))
+        fap <- nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)
+        print(sprintf("FAP (original periodogram): %f", fap))
     }
 
+    return (fap);
+
     ###### Interpreting what FAP is good (from Baluev: https://academic.oup.com/mnras/article/385/3/1279/1010111):
-    # > Given some small critical value FAP* (usually between 10−3 and 0.1), we can claim that the candidate signal is statistically
+    # (1) > Given some small critical value FAP* (usually between 10−3 and 0.1), we can claim that the candidate signal is statistically
     # significant (if FAP < FAP*) or is not (if FAP > FAP*)
 }
 
@@ -204,6 +219,23 @@ validate1_evd <- function(
             any(duplicated(myVec))  # Fine if observations in the bootstrap resamples series duplicates.
         }
     }
+}
+
+smallestPlanetDetectableTest <- function(
+    period,
+    depths,
+    duration,
+    algo,
+    noiseType=1
+) {
+    faps <- c()
+    for (depth in depths) {
+        fap <- evd(period, depth, duration, algo=algo, plot=FALSE)
+        sprintf("depth: %f, fap: %f", depth, fap)
+        faps <- append(faps, fap)
+    }
+    plot(depths*1e4, faps, type='l', log='y', xlab='Depth (ppm)', ylab='FAP', type='o')  # Note: depths must be decreasing.
+    abline(h=0.003, col='black', lty=2)
 }
 
 
