@@ -3,6 +3,7 @@
 # http://quantdevel.com/BootstrappingTimeSeriesData/BootstrappingTimeSeriesData.pdf (About bootstrapping in time-series data).
 # http://www.ccpo.odu.edu/~klinck/Reprints/PDF/omeyHUB2009.pdf (suggested by Suveges, 2014).
 # See about aliasing at the end of this page, for example: https://docs.gammapy.org/0.8/time/period.html and this also: https://hea-www.harvard.edu/~swolk/thesis/period/node5.html
+# See discussion on period/frequency spacing considerations for BLS: https://johnh2o2.github.io/cuvarbase/bls.html#period-spacing-considerations
 
 ########### Resources for extreme value statistics ##########
 # (1) http://personal.cityu.edu.hk/xizhou/first-draft-report.pdf
@@ -33,7 +34,8 @@ evd <- function(
     # Note: noiseType is not used for adding noise to series, but instead used for deciding the way of resampling.
     algo="BLS",
     ntransits=10,
-    plot = TRUE
+    plot = TRUE,
+    ofac=2
 ) {
 
     R <- 1000  # No. of bootstrap resamples of the original time series.
@@ -65,7 +67,7 @@ evd <- function(
     freqMin <- 1 / perMax
     freqMax <- 1 / perMin
     nfreq <- length(t) * 10
-    freqStep <- (freqMax - freqMin) / nfreq
+    freqStep <- (freqMax - freqMin) / (nfreq * ofac)
     freqGrid <- seq(freqMin, by=freqStep, length.out=nfreq)  # Goes from ~0.001 to 0.4999 (NOTE: Since delta_t = 1, fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014).
 
     stopifnot(exprs={
