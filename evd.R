@@ -4,6 +4,7 @@
 # http://www.ccpo.odu.edu/~klinck/Reprints/PDF/omeyHUB2009.pdf (suggested by Suveges, 2014).
 # See about aliasing at the end of this page, for example: https://docs.gammapy.org/0.8/time/period.html and this also: https://hea-www.harvard.edu/~swolk/thesis/period/node5.html
 # See discussion on period/frequency spacing considerations for BLS: https://johnh2o2.github.io/cuvarbase/bls.html#period-spacing-considerations
+# Mathematical description of the Anderson-Darling test: https://bookdown.org/egarpor/NP-UC3M/nptests-dist.html
 
 ########### Resources for extreme value statistics ##########
 # (1) http://personal.cityu.edu.hk/xizhou/first-draft-report.pdf
@@ -23,6 +24,7 @@ source('BLS/bls.R')
 source('TCF3.0/intf_libtcf.R')
 source('standardize_periodogram.R')
 source('test_periodograms.R')
+library('goftest')  # install.packages("goftest")
 
 statFunc <- function(a) { return (a) }
 
@@ -35,7 +37,7 @@ evd <- function(
     algo="BLS",
     ntransits=10,
     plot = TRUE,
-    ofac=2
+    ofac=2  # ofac is also called as "samples per peak" sometimes.
 ) {
 
     R <- 1000  # No. of bootstrap resamples of the original time series.
@@ -62,16 +64,22 @@ evd <- function(
     ### Create a frequency grid.
     # TODO: Currently, both BLS and TCF use uniform frequency sampling. Ofir, 2014 suggested to use the optimal frequency sampling, so try to use it instead?
     # Note that the fact that we uniformly sample in "frequency" rather than "period" is itself a good choice: see last para in sec 7.1 in https://iopscience.iop.org/article/10.3847/1538-4365/aab766/pdf
+    # Note that while using min frequency as zero is often not a problem (does not add suprious peaks - as described in 7.1 in https://iopscience.iop.org/article/10.3847/1538-4365/aab766/pdf), here we start with min_freq = 1 / (duration of time series).
+    # One motivation for oversampling (from https://iopscience.iop.org/article/10.3847/1538-4365/aab766/pdf): "...it is important to choose grid spacings smaller than the expected widths of the periodogram peaks...To ensure that our grid sufficiently samples each peak, it is prudent to oversample by some factor—say, n0 samples per peak--and use a grid of size 1 / (n0 * T)"
+    # The above paper also says that n0 = 5 to 10 is common.
     perMin <- t[3] - t[1]
     perMax <- t[length(t)] - t[1]
     freqMin <- 1 / perMax
     freqMax <- 1 / perMin
-    nfreq <- length(t) * 10
-    freqStep <- (freqMax - freqMin) / (nfreq * ofac)
-    freqGrid <- seq(freqMin, by=freqStep, length.out=nfreq)  # Goes from ~0.001 to 0.4999 (NOTE: Since delta_t = 1, fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014).
+    # nfreq <- length(t) * 10
+    # Note: When we oversample, we are essentially imposing no constraints on the frequencies to be tested: see https://arxiv.org/pdf/1712.00734.pdf
+    # Note that too much oversampling can lead to artifacts. These artifacts can be wrongly interpreted as a true periodic component in the periodogram.
+    freqStep <- (freqMax - freqMin) / (nfreq * ofac)  # Oversampled by a factor, `ofac`.
+    freqGrid <- seq(from = freqMin, to = freqMax, by=freqStep)  # Goes from ~0.001 to 0.5 (NOTE: Since delta_t = 1, fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014).
+    sprintf("No. of frequencies in grid: %f", length(freqGrid))
 
     stopifnot(exprs={
-        any(freqGrid) > 0.5  # No frequency must be greater than the Nyquist frequency.
+        all(freqGrid <= 0.5)  # No frequency must be greater than the Nyquist frequency.
     })
 
     # Divide the frequency into L bins, each with K datapoints.
@@ -119,8 +127,10 @@ evd <- function(
     # Some intution on how to choose the threshold: https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.996.914&rep=rep1&type=pdf (search for threshold - Ctrl+F - in the paper)
     # See section 5.3.2 in Coles, 2001 to see why declustering is needed: Extremes tend to cluster themselves and tend to occur in groups. Note that log-likelihood can be decomposed into a product of individual marginal distribution functions only under iid. So declustering "tries" to make them independent to prevent the violation of the iid assumption while fitting the GEV model below.
     # In short, declustering (approximately) solves the dependence issue of extremes.
-    threshold <- quantile(maxOverAll_R_samples, 0.75)  # TODO: How to choose best threshold?
-    maxOverAll_R_samples <- decluster(maxOverAll_R_samples, threshold = threshold)
+    # TODO: Ensure where exactly to perform declustering -- over the periodogram itself or only on the extracted maxima?
+    # TODO: We might not need declustering in all cases -- we can calculate the extremel index and do declustering only if index < 1...
+    # threshold <- quantile(maxOverAll_R_samples, 0.75)  # TODO: How to choose best threshold?
+    # maxOverAll_R_samples <- decluster(maxOverAll_R_samples, threshold = threshold)
 
     # (3) GEV modelling of partial periodograms' maxima
     fitEVD <- fevd(maxOverAll_R_samples, type='GEV')
@@ -139,13 +149,22 @@ evd <- function(
         # See some description on how ci's are calculated: https://reliability.readthedocs.io/en/latest/How%20are%20the%20confidence%20intervals%20calculated.html
     }
 
-    # (4) Extrapolation to full periodogram
-    print("Extrapolating to full periodogram...")
-    print("Calculating FAP...")
-    ## Get the parameters
+    ## Get the fitted GEV parameters
     location <- findpars(fitEVD)$location[1]  # For some reason, the parameter values repeat 10 times, and all are same. So extract the first.
     scale <- findpars(fitEVD)$scale[1]
     shape <- findpars(fitEVD)$shape[1]
+
+    # Diagnostic goodness-of-fit tests (we use the Anderson-Darling test: https://search.r-project.org/CRAN/refmans/DescTools/html/AndersonDarlingTest.html)
+    # TODO: Add ad test code. and print p-value.
+    # Note: Caveats: (1) This works well only if no. of values is large. (2) p-values might change on a different pass since we pass estimated = TRUE.
+    # A simple reason why we use the Anderson–Darling (AD) test rather than Komogorov-Smirnov (KS) is that AD is able to detect better the situations in which F0 and F differ on the tails (that is, for extreme data), where H0: F = F0 and H1: F \neq F0.
+    result <- ad.test(maxOverAll_R_samples, null = "pgevd", location=location, scale=scale, shape=shape, nullname = "pgevd", estimated = TRUE)  # estimated = TRUE since the gevd parameters (location, scale, shape) are estimated using the data itself.
+    print(result)
+    sprintf("p-value for Anderson-Darling goodness-of-fit test of the periodogram maxima: %f", result$p.value)
+
+    # (4) Extrapolation to full periodogram
+    print("Extrapolating to full periodogram...")
+    print("Calculating FAP...")
 
     ## Important note: It would be better to find an automatic way to judge whether we want to select a GEV model or not, instead of manually looking at the diagnostic plots. This is because we want to apply this method on several periodograms.
 
