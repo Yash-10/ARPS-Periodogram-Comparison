@@ -113,7 +113,9 @@ standardPeriodogram <- function(
         freqStep = (freqMax - freqMin) / nfreq
         f = seq(freqMin, by=freqStep, length.out=nfreq)
         periodsToTry = 1 / f
-        output <- tcf(y, p.try = periodsToTry)
+        # Note that since TCF looks for spikes rather than box shapes, we need to do a differencing operation (using the default: lag 1). This is done even if the time-series is stationary (which is the case in simulations).
+        # The reason for doing this despite stationarity is because TCF only looks for spikes rather than box shapes.
+        output <- tcf(diff(y), p.try = periodsToTry)
     }
 
     # (1) Remove trend in periodogram

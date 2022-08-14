@@ -37,7 +37,8 @@ evd <- function(
     algo="BLS",
     ntransits=10,
     plot = TRUE,
-    ofac=2  # ofac is also called as "samples per peak" sometimes.
+    ofac=2,  # ofac is also called as "samples per peak" sometimes.
+    useOptimalFreqSampling = TRUE  # If want to use the optimal frequency sampling from Ofir, 2014: delta_freq = q / (s * os), where s is whole time series duration, os is oversampling factor and q is the duty cycle (time in single transit / total time series duration).
 ) {
 
     R <- 1000  # No. of bootstrap resamples of the original time series.
@@ -62,6 +63,10 @@ evd <- function(
     }
 
     ### Create a frequency grid.
+    ################## Ofir, 2014 - optimal frequency sampling - notes #################
+    # (1) "It is now easy to see that the frequency resolution ∆f is no longer constant - it depends on f itself due to the physics of the problem."
+    # (2) Section 3.2 also says that by using a very fine frequency grid (suitable for long-period signals), we (a) increase computation time a lot, and (b) it will be too sensitive to noise and less to actual real signals.
+
     # TODO: Currently, both BLS and TCF use uniform frequency sampling. Ofir, 2014 suggested to use the optimal frequency sampling, so try to use it instead?
     # Note that the fact that we uniformly sample in "frequency" rather than "period" is itself a good choice: see last para in sec 7.1 in https://iopscience.iop.org/article/10.3847/1538-4365/aab766/pdf
     # Note that while using min frequency as zero is often not a problem (does not add suprious peaks - as described in 7.1 in https://iopscience.iop.org/article/10.3847/1538-4365/aab766/pdf), here we start with min_freq = 1 / (duration of time series).
@@ -72,9 +77,24 @@ evd <- function(
     freqMin <- 1 / perMax
     freqMax <- 1 / perMin
     # nfreq <- length(t) * 10
-    # Note: When we oversample, we are essentially imposing no constraints on the frequencies to be tested: see https://arxiv.org/pdf/1712.00734.pdf
-    # Note that too much oversampling can lead to artifacts. These artifacts can be wrongly interpreted as a true periodic component in the periodogram.
-    freqStep <- (freqMax - freqMin) / (nfreq * ofac)  # Oversampled by a factor, `ofac`.
+
+    if (useOptimalFreqSampling) {
+        if (algo == "BLS") {
+            q = duration  # single transit duration / light curve duration.
+        }
+        else if (algo == "TCF") {  # TODO: This actually yields a very bad GEV fit - so something is wrong in calculating the duty cycle for TCF.
+            # Duty cycle for TCF taken from Caceres, 2019 methodology paper: https://iopscience.iop.org/article/10.3847/1538-3881/ab26b8
+            q = 1 / (period * 24)
+        }
+        s = length(t)
+        freqStep = q / (s * ofac)
+    }
+    else {
+        # Note: When we oversample, we are essentially imposing no constraints on the frequencies to be tested: see https://arxiv.org/pdf/1712.00734.pdf
+        # Note that too much oversampling can lead to artifacts. These artifacts can be wrongly interpreted as a true periodic component in the periodogram.
+        freqStep <- (freqMax - freqMin) / (nfreq * ofac)  # Oversampled by a factor, `ofac`.
+    }
+
     freqGrid <- seq(from = freqMin, to = freqMax, by=freqStep)  # Goes from ~0.001 to 0.5 (NOTE: Since delta_t = 1, fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014).
     sprintf("No. of frequencies in grid: %f", length(freqGrid))
 
@@ -111,7 +131,7 @@ evd <- function(
                 # For TCF, select K frequencies from freqs.
                 freqsTCF <- seq(min(freqs), max(freqs), length.out=K)
                 # print(freqsTCF)
-                partialPeriodogram <- tcf(bootTS[j,], p.try = 1 / freqsTCF, print.output = FALSE)$outpow
+                partialPeriodogram <- tcf(diff(bootTS[j,]), p.try = 1 / freqsTCF, print.output = FALSE)$outpow
                 # partialPeriodogram <- unlist(standardPeriodogram(bootTS[j,], t, perMin=min(1/freqs), perMax=max(1/freqs), nper=K, plot = FALSE, noiseType=noiseType, algo="TCF")[1])
             }
 
@@ -138,17 +158,6 @@ evd <- function(
     print(summary(fitEVD))
     distill(fitEVD)
 
-    # Diagnostic plots.
-    if (plot) {
-        # TODO: Why ci fails sometimes?
-        try(plot(fitEVD))
-        # plot(fitEVD, "trace")
-        # return.level(fitEVD)
-        # return.level(fitEVD, do.ci = TRUE)
-        # ci(fitEVD, return.period = c(2, 20, 100))
-        # See some description on how ci's are calculated: https://reliability.readthedocs.io/en/latest/How%20are%20the%20confidence%20intervals%20calculated.html
-    }
-
     ## Get the fitted GEV parameters
     location <- findpars(fitEVD)$location[1]  # For some reason, the parameter values repeat 10 times, and all are same. So extract the first.
     scale <- findpars(fitEVD)$scale[1]
@@ -160,7 +169,18 @@ evd <- function(
     # A simple reason why we use the Anderson–Darling (AD) test rather than Komogorov-Smirnov (KS) is that AD is able to detect better the situations in which F0 and F differ on the tails (that is, for extreme data), where H0: F = F0 and H1: F \neq F0.
     result <- ad.test(maxOverAll_R_samples, null = "pgevd", location=location, scale=scale, shape=shape, nullname = "pgevd", estimated = TRUE)  # estimated = TRUE since the gevd parameters (location, scale, shape) are estimated using the data itself.
     print(result)
-    sprintf("p-value for Anderson-Darling goodness-of-fit test of the periodogram maxima: %f", result$p.value)
+    print(sprintf("p-value for Anderson-Darling goodness-of-fit test of the periodogram maxima: %f", result$p.value))
+
+    # Diagnostic plots.
+    if (plot) {
+        # TODO: Why ci fails sometimes?
+        try(plot(fitEVD))
+        # plot(fitEVD, "trace")
+        # return.level(fitEVD)
+        # return.level(fitEVD, do.ci = TRUE)
+        # ci(fitEVD, return.period = c(2, 20, 100))
+        # See some description on how ci's are calculated: https://reliability.readthedocs.io/en/latest/How%20are%20the%20confidence%20intervals%20calculated.html
+    }
 
     # (4) Extrapolation to full periodogram
     print("Extrapolating to full periodogram...")
@@ -171,6 +191,7 @@ evd <- function(
     # Compute full periodogram (note: standardized periodogram is used).
     # TODO: Since standardized periodogram's scale has changed (due to scatter-removal), it lies at the end of gev cdf, thus always giving fap=0.000 -- fix this: either remove the scatter or do some hackery to prevent this from happening.
     if (algo == "BLS") {
+        ## On standardized periodogram
         op <- getStandardPeriodogram(period, depth, duration, noiseType=noiseType, algo=algo, ntransits=ntransits)
         output <- unlist(op[1])
         periodsTested <- unlist(op[2])
@@ -179,13 +200,12 @@ evd <- function(
         fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
         print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))  # This formula is from Suveges, 2014.
 
+        ## On original periodogram
         output <- bls(y, t, bls.plot = FALSE)$spec
-
         # Verify that the period corresponding to the largest peak in standardized periodogram is the same as in original periodogram.
         # stopifnot(exprs={
         #     all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
         # })
-
         fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
         fap <- nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)
         print(sprintf("FAP (original periodogram): %f", fap))
@@ -207,7 +227,7 @@ evd <- function(
         freqStep = (freqMax - freqMin) / nfreq
         f = seq(freqMin, by=freqStep, length.out=nfreq)
         periodsToTry = 1 / f
-        output <- tcf(y, p.try = periodsToTry, print.output = FALSE)$outpow
+        output <- tcf(diff(y), p.try = periodsToTry, print.output = FALSE)$outpow
 
         # stopifnot(exprs={
         #     all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
