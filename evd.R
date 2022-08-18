@@ -57,9 +57,9 @@ evd <- function(
         bootTS <- aperm(bootTS)
         # bootTS will be of shape (R, length(y)).
     }
-    else if (noiseType == 2) {  # 2 means autoregressive noise.  # TODO: (Q) Am I resampling with replacement in this case?
-        # TODO: Need to implement this correctly.
-        bootTS <- tsboot(ts(y), statistic=statFunc, R=R, sim="fixed", l=length(y), n.sim=length(y))  # Moving-block bootstrap.
+    else if (noiseType == 2) {  # 2 means autoregressive noise.  # This answer: https://stats.stackexchange.com/a/317724 seems to say that block resampling resamples blocks with replacement.
+        # Note that bootstrapping, by definition, is resampling "with replacement": https://en.wikipedia.org/wiki/Bootstrapping_(statistics)
+        bootTS <- tsboot(ts(y), statistic=statFunc, R=R, sim="fixed", l=length(y), n.sim=length(y))$t  # Moving-block bootstrap.
     }
 
     ### Create a frequency grid.
@@ -67,7 +67,7 @@ evd <- function(
     # (1) "It is now easy to see that the frequency resolution ∆f is no longer constant - it depends on f itself due to the physics of the problem."
     # (2) Section 3.2 also says that by using a very fine frequency grid (suitable for long-period signals), we (a) increase computation time a lot, and (b) it will be too sensitive to noise and less to actual real signals.
 
-    # TODO: Currently, both BLS and TCF use uniform frequency sampling. Ofir, 2014 suggested to use the optimal frequency sampling, so try to use it instead?
+    # There is an option to use Ofir, 2014's suggestion to use the optimal frequency sampling.
     # Note that the fact that we uniformly sample in "frequency" rather than "period" is itself a good choice: see last para in sec 7.1 in https://iopscience.iop.org/article/10.3847/1538-4365/aab766/pdf
     # Note that while using min frequency as zero is often not a problem (does not add suprious peaks - as described in 7.1 in https://iopscience.iop.org/article/10.3847/1538-4365/aab766/pdf), here we start with min_freq = 1 / (duration of time series).
     # One motivation for oversampling (from https://iopscience.iop.org/article/10.3847/1538-4365/aab766/pdf): "...it is important to choose grid spacings smaller than the expected widths of the periodogram peaks...To ensure that our grid sufficiently samples each peak, it is prudent to oversample by some factor—say, n0 samples per peak--and use a grid of size 1 / (n0 * T)"
@@ -90,12 +90,13 @@ evd <- function(
         freqStep = q / (s * ofac)
     }
     else {
-        # Note: When we oversample, we are essentially imposing no constraints on the frequencies to be tested: see https://arxiv.org/pdf/1712.00734.pdf
+        # Note: When we oversample, we are essentially imposing no constraints on the frequencies to be tested - that is helpful in general: see https://arxiv.org/pdf/1712.00734.pdf
         # Note that too much oversampling can lead to artifacts. These artifacts can be wrongly interpreted as a true periodic component in the periodogram.
         freqStep <- (freqMax - freqMin) / (nfreq * ofac)  # Oversampled by a factor, `ofac`.
     }
 
     freqGrid <- seq(from = freqMin, to = freqMax, by=freqStep)  # Goes from ~0.001 to 0.5 (NOTE: Since delta_t = 1, fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014).
+    print(freqGrid)
     sprintf("No. of frequencies in grid: %f", length(freqGrid))
 
     stopifnot(exprs={
@@ -111,9 +112,11 @@ evd <- function(
     spaceToDistribute <- intervalLength - (nBins * binWidth + (nBins - 1) * binMinDistance)
     distances <- diff(floor(c(0, sort(runif(nBins))) * spaceToDistribute))
     startOfBin <- cumsum(distances) + (0:(nBins-1)) * 101
-    KLinds<- data.frame(bin = 1:nBins, startOfBin = startOfBin, endOfBin = startOfBin + binWidth - 1)
+    KLinds <- data.frame(bin = 1:nBins, startOfBin = startOfBin, endOfBin = startOfBin + binWidth - 1)
 
-    # print(KLinds)
+    stopifnot(exprs={  # Check if the no. of frequencies in a bin is in fact equal to the desired number.
+        length(freqGrid(KLinds[1, 2]:KLinds[1, 3])) == binWidth
+    })
 
     # (2) Max of each partial periodogram
     # TODO: Need to use standardization/normalization somewhere! See astropy _statistics module under LombScargle to know at which step to normalize -- should we normalize these bootstrap periodograms or only the final full periodogram.
@@ -164,7 +167,6 @@ evd <- function(
     shape <- findpars(fitEVD)$shape[1]
 
     # Diagnostic goodness-of-fit tests (we use the Anderson-Darling test: https://search.r-project.org/CRAN/refmans/DescTools/html/AndersonDarlingTest.html)
-    # TODO: Add ad test code. and print p-value.
     # Note: Caveats: (1) This works well only if no. of values is large. (2) p-values might change on a different pass since we pass estimated = TRUE.
     # A simple reason why we use the Anderson–Darling (AD) test rather than Komogorov-Smirnov (KS) is that AD is able to detect better the situations in which F0 and F differ on the tails (that is, for extreme data), where H0: F = F0 and H1: F \neq F0.
     result <- ad.test(maxOverAll_R_samples, null = "pgevd", location=location, scale=scale, shape=shape, nullname = "pgevd", estimated = TRUE)  # estimated = TRUE since the gevd parameters (location, scale, shape) are estimated using the data itself.
@@ -192,13 +194,13 @@ evd <- function(
     # TODO: Since standardized periodogram's scale has changed (due to scatter-removal), it lies at the end of gev cdf, thus always giving fap=0.000 -- fix this: either remove the scatter or do some hackery to prevent this from happening.
     if (algo == "BLS") {
         ## On standardized periodogram
-        op <- getStandardPeriodogram(period, depth, duration, noiseType=noiseType, algo=algo, ntransits=ntransits)
-        output <- unlist(op[1])
-        periodsTested <- unlist(op[2])
-        periodEstimate <- periodsTested[which.max(output)]
+        # op <- getStandardPeriodogram(period, depth, duration, noiseType=noiseType, algo=algo, ntransits=ntransits)
+        # output <- unlist(op[1])
+        # periodsTested <- unlist(op[2])
+        # periodEstimate <- periodsTested[which.max(output)]
 
-        fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
-        print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))  # This formula is from Suveges, 2014.
+        # fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
+        # print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))  # This formula is from Suveges, 2014.
 
         ## On original periodogram
         output <- bls(y, t, bls.plot = FALSE)$spec
@@ -211,13 +213,13 @@ evd <- function(
         print(sprintf("FAP (original periodogram): %f", fap))
     }
     else {
-        op <- getStandardPeriodogram(period, depth, duration, noiseType=noiseType, algo=algo, ntransits=ntransits)
-        output <- unlist(op[1])
-        periodsTested <- unlist(op[2])
-        periodEstimate <- periodsTested[which.max(output)]
+        # op <- getStandardPeriodogram(period, depth, duration, noiseType=noiseType, algo=algo, ntransits=ntransits)
+        # output <- unlist(op[1])
+        # periodsTested <- unlist(op[2])
+        # periodEstimate <- periodsTested[which.max(output)]
 
-        fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
-        print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))  # This formula is from Suveges, 2014.
+        # fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
+        # print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))  # This formula is from Suveges, 2014.
 
         perMin = t[3] - t[1]
         perMax = t[length(t)] - t[1]
