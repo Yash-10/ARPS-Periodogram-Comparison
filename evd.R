@@ -131,7 +131,7 @@ evd <- function(
             freqs <- freqGrid[KLinds[ll,2]:KLinds[ll,3]]
             # TODO: Decide whether to use standardize or normal periodogram only for the partial ones?
             if (algo == "BLS") {
-                partialPeriodogram <- bls(bootTS[j,], t, per.min=min(1/freqs), per.max=max(1/freqs), nper=K, bls.plot = FALSE)
+                partialPeriodogram <- bls(bootTS[j,], t, per.min=min(1/freqs), per.max=max(1/freqs), nper=K, bls.plot = FALSE)$spec
                 plot(partialPeriodogram$periodsTested, partialPeriodogram$spec, type='l')
                 # partialPeriodogram <- unlist(standardPeriodogram(bootTS[j,], t, perMin=min(1/freqs), perMax=max(1/freqs), nper=K, plot = FALSE, noiseType=noiseType)[1])
             }
@@ -223,7 +223,7 @@ evd <- function(
         # print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))  # This formula is from Suveges, 2014.
 
         ## On original periodogram
-        output <- bls(y, t, bls.plot = FALSE)
+        output <- bls(y, t, bls.plot = FALSE)$spec
 
         # Verify that the period corresponding to the largest peak in standardized periodogram is the same as in original periodogram.
         # stopifnot(exprs={
