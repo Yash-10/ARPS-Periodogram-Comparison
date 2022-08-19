@@ -43,7 +43,7 @@ evd <- function(
     alpha=0.05  # Significance level for hypothesis testing on the GEV fit on periodogram maxima. TODO: How to choose a significance level beforehand - any heuristics to follow?
 ) {
 
-    R <- 1  # No. of bootstrap resamples of the original time series.
+    R <- 100  # No. of bootstrap resamples of the original time series.
     K <- 100   # No. of distinct frequencies in a frequency bin.  # TODO: Note that in Suveges, 2014, K = 16 is used and K is called as the oversampling factor - here we are not doing that, i.e. K is not the oversampling factor, ofac.
     L <- 80    # No. of distinct frequency bins.
 
