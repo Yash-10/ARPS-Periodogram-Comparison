@@ -9,6 +9,7 @@
 ########### Resources for extreme value statistics ##########
 # (1) http://personal.cityu.edu.hk/xizhou/first-draft-report.pdf
 # (2) Playlist on Extreme Value Statistics: https://youtube.com/playlist?list=PLh35GyCXlQaTJtTq4OQGzMblwEcVIWW9n
+# https://www.lmd.ens.fr/E2C2/class/naveauRomaniaE2C207.pdf
 
 #############################################################
 # Good set of papers: https://arxiv.org/pdf/1712.00734.pdf
@@ -38,12 +39,13 @@ evd <- function(
     ntransits=10,
     plot = TRUE,
     ofac=2,  # ofac is also called as "samples per peak" sometimes.
-    useOptimalFreqSampling = TRUE  # If want to use the optimal frequency sampling from Ofir, 2014: delta_freq = q / (s * os), where s is whole time series duration, os is oversampling factor and q is the duty cycle (time in single transit / total time series duration).
+    useOptimalFreqSampling = FALSE,  # If want to use the optimal frequency sampling from Ofir, 2014: delta_freq = q / (s * os), where s is whole time series duration, os is oversampling factor and q is the duty cycle (time in single transit / total time series duration).
+    alpha=0.05  # Significance level for hypothesis testing on the GEV fit on periodogram maxima. TODO: How to choose a significance level beforehand - any heuristics to follow?
 ) {
 
-    R <- 1000  # No. of bootstrap resamples of the original time series.
-    K <- 100    # No. of distinct frequencies in a frequency bin.
-    L <- 50    # No. of distinct frequency bins.
+    R <- 1  # No. of bootstrap resamples of the original time series.
+    K <- 100   # No. of distinct frequencies in a frequency bin.  # TODO: Note that in Suveges, 2014, K = 16 is used and K is called as the oversampling factor - here we are not doing that, i.e. K is not the oversampling factor, ofac.
+    L <- 80    # No. of distinct frequency bins.
 
     # Generate light curve using the parameters.
     yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits)
@@ -54,8 +56,8 @@ evd <- function(
     # Non-parametric bootstrap with replacement.
     if (noiseType == 1) {
         bootTS <- replicate(R, replicate(length(y), sample(y, 1, replace=TRUE)))
-        bootTS <- aperm(bootTS)
-        # bootTS will be of shape (R, length(y)).
+        bootTS <- aperm(bootTS)  # This just permutes the dimension of bootTS - rows become columns and columns become rows - just done for easier indexing further in the code.
+        # At this point, bootTS will be of shape (R, length(y)).
     }
     else if (noiseType == 2) {  # 2 means autoregressive noise.  # This answer: https://stats.stackexchange.com/a/317724 seems to say that block resampling resamples blocks with replacement.
         # Note that bootstrapping, by definition, is resampling "with replacement": https://en.wikipedia.org/wiki/Bootstrapping_(statistics)
@@ -67,7 +69,7 @@ evd <- function(
     # (1) "It is now easy to see that the frequency resolution ∆f is no longer constant - it depends on f itself due to the physics of the problem."
     # (2) Section 3.2 also says that by using a very fine frequency grid (suitable for long-period signals), we (a) increase computation time a lot, and (b) it will be too sensitive to noise and less to actual real signals.
 
-    # There is an option to use Ofir, 2014's suggestion to use the optimal frequency sampling.
+    # In this code, there is also an option to use Ofir, 2014's suggestion to use the optimal frequency sampling rather than the default uniform frequency sampling.
     # Note that the fact that we uniformly sample in "frequency" rather than "period" is itself a good choice: see last para in sec 7.1 in https://iopscience.iop.org/article/10.3847/1538-4365/aab766/pdf
     # Note that while using min frequency as zero is often not a problem (does not add suprious peaks - as described in 7.1 in https://iopscience.iop.org/article/10.3847/1538-4365/aab766/pdf), here we start with min_freq = 1 / (duration of time series).
     # One motivation for oversampling (from https://iopscience.iop.org/article/10.3847/1538-4365/aab766/pdf): "...it is important to choose grid spacings smaller than the expected widths of the periodogram peaks...To ensure that our grid sufficiently samples each peak, it is prudent to oversample by some factor—say, n0 samples per peak--and use a grid of size 1 / (n0 * T)"
@@ -96,12 +98,14 @@ evd <- function(
     }
 
     freqGrid <- seq(from = freqMin, to = freqMax, by=freqStep)  # Goes from ~0.001 to 0.5 (NOTE: Since delta_t = 1, fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014).
-    print(freqGrid)
     sprintf("No. of frequencies in grid: %f", length(freqGrid))
 
     stopifnot(exprs={
         all(freqGrid <= 0.5)  # No frequency must be greater than the Nyquist frequency.
+        length(freqGrid) >= K * L  # If this is not true, the FAP values could be greater than one, which is not realistic (this is my interpretation).
     })
+
+    print(freqGrid)
 
     # Divide the frequency into L bins, each with K datapoints.
     ## From https://stackoverflow.com/questions/57889573/how-to-randomly-divide-interval-into-non-overlapping-spaced-bins-of-equal-lengt
@@ -115,7 +119,7 @@ evd <- function(
     KLinds <- data.frame(bin = 1:nBins, startOfBin = startOfBin, endOfBin = startOfBin + binWidth - 1)
 
     stopifnot(exprs={  # Check if the no. of frequencies in a bin is in fact equal to the desired number.
-        length(freqGrid(KLinds[1, 2]:KLinds[1, 3])) == binWidth
+        length(freqGrid[KLinds[1, 2]:KLinds[1, 3]]) == binWidth
     })
 
     # (2) Max of each partial periodogram
@@ -127,7 +131,8 @@ evd <- function(
             freqs <- freqGrid[KLinds[ll,2]:KLinds[ll,3]]
             # TODO: Decide whether to use standardize or normal periodogram only for the partial ones?
             if (algo == "BLS") {
-                partialPeriodogram <- bls(bootTS[j,], t, per.min=min(1/freqs), per.max=max(1/freqs), nper=K, bls.plot = FALSE)$spec
+                partialPeriodogram <- bls(bootTS[j,], t, per.min=min(1/freqs), per.max=max(1/freqs), nper=K, bls.plot = FALSE)
+                plot(partialPeriodogram$periodsTested, partialPeriodogram$spec, type='l')
                 # partialPeriodogram <- unlist(standardPeriodogram(bootTS[j,], t, perMin=min(1/freqs), perMax=max(1/freqs), nper=K, plot = FALSE, noiseType=noiseType)[1])
             }
             else {
@@ -137,6 +142,11 @@ evd <- function(
                 partialPeriodogram <- tcf(diff(bootTS[j,]), p.try = 1 / freqsTCF, print.output = FALSE)$outpow
                 # partialPeriodogram <- unlist(standardPeriodogram(bootTS[j,], t, perMin=min(1/freqs), perMax=max(1/freqs), nper=K, plot = FALSE, noiseType=noiseType, algo="TCF")[1])
             }
+
+            # Note: If we use oversampling, then while it increases the flexibility to choose frequencies in the frequency grid, it also has important issues as noted in https://academic.oup.com/mnras/article/388/4/1693/981666:
+            # (1) "if we oversample the periodogram, the powers at the sampled frequencies are no longer independent..."
+            # To solve the above problem, we decluster the partial periodograms.
+            partialPeriodogram <- decluster(partialPeriodogram, threshold = quantile(partialPeriodogram, probs=c(0.75)))
 
             partialPeriodograms <- append(partialPeriodograms, partialPeriodogram)
         }
@@ -150,8 +160,9 @@ evd <- function(
     # Some intution on how to choose the threshold: https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.996.914&rep=rep1&type=pdf (search for threshold - Ctrl+F - in the paper)
     # See section 5.3.2 in Coles, 2001 to see why declustering is needed: Extremes tend to cluster themselves and tend to occur in groups. Note that log-likelihood can be decomposed into a product of individual marginal distribution functions only under iid. So declustering "tries" to make them independent to prevent the violation of the iid assumption while fitting the GEV model below.
     # In short, declustering (approximately) solves the dependence issue of extremes.
-    # TODO: Ensure where exactly to perform declustering -- over the periodogram itself or only on the extracted maxima?
+    # TODO: Ensure where exactly to perform declustering -- over the periodogram itself or only on the extracted maxima? I think most likely the former.
     # TODO: We might not need declustering in all cases -- we can calculate the extremel index and do declustering only if index < 1...
+    # Due to our way of extracting maxima of periodograms (i.e. not from whole periodogram but only from partial periodogram), maybe we do not even need declustering.
     # threshold <- quantile(maxOverAll_R_samples, 0.75)  # TODO: How to choose best threshold?
     # maxOverAll_R_samples <- decluster(maxOverAll_R_samples, threshold = threshold)
 
@@ -166,12 +177,21 @@ evd <- function(
     scale <- findpars(fitEVD)$scale[1]
     shape <- findpars(fitEVD)$shape[1]
 
-    # Diagnostic goodness-of-fit tests (we use the Anderson-Darling test: https://search.r-project.org/CRAN/refmans/DescTools/html/AndersonDarlingTest.html)
+    # Diagnostic goodness-of-fit tests (we use the Anderson-Darling (AD) test: https://search.r-project.org/CRAN/refmans/DescTools/html/AndersonDarlingTest.html)
     # Note: Caveats: (1) This works well only if no. of values is large. (2) p-values might change on a different pass since we pass estimated = TRUE.
     # A simple reason why we use the Anderson–Darling (AD) test rather than Komogorov-Smirnov (KS) is that AD is able to detect better the situations in which F0 and F differ on the tails (that is, for extreme data), where H0: F = F0 and H1: F \neq F0.
-    result <- ad.test(maxOverAll_R_samples, null = "pgevd", location=location, scale=scale, shape=shape, nullname = "pgevd", estimated = TRUE)  # estimated = TRUE since the gevd parameters (location, scale, shape) are estimated using the data itself.
+    result <- ad.test(maxOverAll_R_samples, null = "pgevd", location=location, scale=scale, shape=shape, nullname = "pgevd", estimated = TRUE)  # estimated = TRUE since the gevd parameters (location, scale, shape) are estimated using the data itself - those three parameters are not data-agnostic.
     print(result)
     print(sprintf("p-value for Anderson-Darling goodness-of-fit test of the periodogram maxima: %f", result$p.value))
+
+    # Check if AD fit is good enough. If not, return a dummy fap value.
+    # This check serves as a way to "automatically" find if the GEV fit is good and if it can be extrapolated to the full periodogram.
+    # Suveges, 2014 suggests looking at the diagnostic plots before extrapolating to full periodogram, but that is cumbersome for large-scale simulations. Hence, this is a simple way to overcome manual fit quality inspection.
+    # TODO: Make this work.
+    # if (result$p.value < alpha) {  # Reject null hypothesis
+    #     dummyFap <- -999
+    #     return (dummyFap)
+    # }
 
     # Diagnostic plots.
     if (plot) {
@@ -203,13 +223,15 @@ evd <- function(
         # print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))  # This formula is from Suveges, 2014.
 
         ## On original periodogram
-        output <- bls(y, t, bls.plot = FALSE)$spec
+        output <- bls(y, t, bls.plot = FALSE)
+
         # Verify that the period corresponding to the largest peak in standardized periodogram is the same as in original periodogram.
         # stopifnot(exprs={
         #     all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
         # })
-        fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
-        fap <- nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)
+        ##### TODO: FAP calculation here is most likely not correct since here it is assumed that return level is same as full periodogram maxima, but it does not seem true.
+        fullPeriodogramValue <- pgevd(max(output), location=location, scale=scale, shape=shape)
+        fap <- nfreq * (1 - fullPeriodogramValue) / (K * L)
         print(sprintf("FAP (original periodogram): %f", fap))
     }
     else {
@@ -218,8 +240,8 @@ evd <- function(
         # periodsTested <- unlist(op[2])
         # periodEstimate <- periodsTested[which.max(output)]
 
-        # fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
-        # print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))  # This formula is from Suveges, 2014.
+        # fullPeriodogramValue <- pgevd(max(output), location=location, scale=scale, shape=shape)
+        # print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramValue) / (K * L)))  # This formula is from Suveges, 2014.
 
         perMin = t[3] - t[1]
         perMax = t[length(t)] - t[1]
@@ -235,8 +257,8 @@ evd <- function(
         #     all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
         # })
 
-        fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
-        fap <- nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)
+        fullPeriodogramValue <- pgevd(max(output), location=location, scale=scale, shape=shape)
+        fap <- nfreq * (1 - fullPeriodogramValue) / (K * L)
         print(sprintf("FAP (original periodogram): %f", fap))
     }
 
@@ -265,22 +287,27 @@ validate1_evd <- function(
 }
 
 smallestPlanetDetectableTest <- function(
-    period,
-    depths,
-    duration,
-    algo,
-    noiseType=1
+    period,  # in days
+    depths,  # in %
+    duration,  # in hours
+    algo,  # either BLS or TCF
+    noiseType=1  # 1 for Gaussian and 2 for autoregressive noise
 ) {
     faps <- c()
     for (depth in depths) {
         fap <- evd(period, depth, duration, algo=algo, plot=FALSE)
-        sprintf("depth: %f, fap: %f", depth, fap)
+        sprintf("depth (ppm): %f, fap: %f", depth*1e4, fap)
         faps <- append(faps, fap)
     }
-    plot(depths*1e4, faps, type='l', log='y', xlab='Depth (ppm)', ylab='FAP', type='o')  # Note: depths must be decreasing.
-    abline(h=0.003, col='black', lty=2)
-}
 
+    plot(depths*1e4, faps, log='y', xlab='Depth (ppm)', ylab='FAP', type='o')
+    if (noiseType == 1) {
+        abline(h=0.003, col='black', lty=2)  # FAP=0.003 corresponds to 3-sigma criterion for Gaussian -- commonly used in astronomy.
+    }
+    else {
+        abline(h=0.002, col='black', lty=2)  # TODO: Decide what threshold FAP to use for the autoregressive case.
+    }
+}
 
 ################# Questions not yet understood by me ##################
 # (1) What is "high quantiles of a distribution"? See online where mainly talk about heavy-tailed distributions..
