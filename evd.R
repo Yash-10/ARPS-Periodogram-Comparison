@@ -44,8 +44,8 @@ evd <- function(
 ) {
 
     R <- 1000  # No. of bootstrap resamples of the original time series.
-    K <- 50   # No. of distinct frequencies in a frequency bin.  # TODO: Note that in Suveges, 2014, K = 16 is used and K is called as the oversampling factor - here we are not doing that, i.e. K is not the oversampling factor, ofac.
-    L <- 100    # No. of distinct frequency bins.
+    K <- ofac   # No. of distinct frequencies in a frequency bin.  # TODO: Note that in Suveges, 2014, K = 16 is used and K is called as the oversampling factor - here we are not doing that, i.e. K is not the oversampling factor, ofac.
+    L <- 50    # No. of distinct frequency bins.
 
     # Generate light curve using the parameters.
     yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits)
@@ -205,85 +205,85 @@ evd <- function(
         # See some description on how ci's are calculated: https://reliability.readthedocs.io/en/latest/How%20are%20the%20confidence%20intervals%20calculated.html
     }
 
-    # # (4) Extrapolation to full periodogram
-    # print("Extrapolating to full periodogram...")
-    # print("Calculating FAP...")
+    # (4) Extrapolation to full periodogram
+    print("Extrapolating to full periodogram...")
+    print("Calculating FAP...")
 
-    # ## Important note: It would be better to find an automatic way to judge whether we want to select a GEV model or not, instead of manually looking at the diagnostic plots. This is because we want to apply this method on several periodograms.
+    ## Important note: It would be better to find an automatic way to judge whether we want to select a GEV model or not, instead of manually looking at the diagnostic plots. This is because we want to apply this method on several periodograms.
 
-    # # Compute full periodogram (note: standardized periodogram is used).
-    # # TODO: Since standardized periodogram's scale has changed (due to scatter-removal), it lies at the end of gev cdf, thus always giving fap=0.000 -- fix this: either remove the scatter or do some hackery to prevent this from happening.
-    # if (algo == "BLS") {
-    #     ## On standardized periodogram
-    #     # op <- getStandardPeriodogram(period, depth, duration, noiseType=noiseType, algo=algo, ntransits=ntransits)
-    #     # output <- unlist(op[1])
-    #     # periodsTested <- unlist(op[2])
-    #     # periodEstimate <- periodsTested[which.max(output)]
+    # Compute full periodogram (note: standardized periodogram is used).
+    # TODO: Since standardized periodogram's scale has changed (due to scatter-removal), it lies at the end of gev cdf, thus always giving fap=0.000 -- fix this: either remove the scatter or do some hackery to prevent this from happening.
+    if (algo == "BLS") {
+        ## On standardized periodogram
+        # op <- getStandardPeriodogram(period, depth, duration, noiseType=noiseType, algo=algo, ntransits=ntransits)
+        # output <- unlist(op[1])
+        # periodsTested <- unlist(op[2])
+        # periodEstimate <- periodsTested[which.max(output)]
 
-    #     # fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
-    #     # print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))  # This formula is from Suveges, 2014.
+        # fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
+        # print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))  # This formula is from Suveges, 2014.
 
-    #     ## On original periodogram
-    #     output <- bls(y, t, bls.plot = FALSE)$spec
-    #     print("max of output")
-    #     print(max(output))
+        ## On original periodogram
+        output <- bls(y, t, bls.plot = FALSE)$spec
+        print("max of output")
+        print(max(output))
 
-    #     print("Calculating return level corresponding to FAP = 0.01")
-    #     ppgevd <- function(x) pgevd(x, location=location, scale=scale, shape=shape)
-    #     ppgevdInv <- inverse(ppgevd)
-    #     returnLevel <- ppgevdInv(1 - ((0.01 * K * L) / length(freqGrid)))
-    #     print(returnLevel)
+        # print("Calculating return level corresponding to FAP = 0.01")
+        # ppgevd <- function(x) pgevd(x, location=location, scale=scale, shape=shape)
+        # ppgevdInv <- inverse(ppgevd)
+        # returnLevel <- ppgevdInv(1 - ((0.01 * K * L) / length(freqGrid)))
+        # print(returnLevel)
 
-    #     # Verify that the period corresponding to the largest peak in standardized periodogram is the same as in original periodogram.
-    #     # stopifnot(exprs={
-    #     #     all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
-    #     # })
-    #     ##### TODO: FAP calculation here is most likely not correct since here it is assumed that return level is same as full periodogram maxima, but it does not seem true.
-    #     quantInv <- function(distr, value) ecdf(distr)(value)
-    #     maxOutputIsWhichQuantile <- quantInv(maxima_R, max(output))
+        # Verify that the period corresponding to the largest peak in standardized periodogram is the same as in original periodogram.
+        # stopifnot(exprs={
+        #     all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
+        # })
+        ##### TODO: FAP calculation here is most likely not correct since here it is assumed that return level is same as full periodogram maxima, but it does not seem true.
+        quantInv <- function(distr, value) ecdf(distr)(value)
+        maxOutputIsWhichQuantile <- quantInv(maxima_R, max(output))
 
-    #     fullPeriodogramValue <- pgevd(maxOutputIsWhichQuantile, location=location, scale=scale, shape=shape)
-    #     fap <- nfreq * (1 - fullPeriodogramValue) / (K * L)
-    #     print(sprintf("FAP (original periodogram): %f", fap))
-    # }
-    # else {
-    #     # op <- getStandardPeriodogram(period, depth, duration, noiseType=noiseType, algo=algo, ntransits=ntransits)
-    #     # output <- unlist(op[1])
-    #     # periodsTested <- unlist(op[2])
-    #     # periodEstimate <- periodsTested[which.max(output)]
+        fullPeriodogramValue <- pgevd(maxOutputIsWhichQuantile, location=location, scale=scale, shape=shape)
+        fap <- nfreq * (1 - fullPeriodogramValue) / (K * L)
+        print(sprintf("FAP (original periodogram): %f", fap))
+    }
+    else {
+        # op <- getStandardPeriodogram(period, depth, duration, noiseType=noiseType, algo=algo, ntransits=ntransits)
+        # output <- unlist(op[1])
+        # periodsTested <- unlist(op[2])
+        # periodEstimate <- periodsTested[which.max(output)]
 
-    #     # fullPeriodogramValue <- pgevd(max(output), location=location, scale=scale, shape=shape)
-    #     # print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramValue) / (K * L)))  # This formula is from Suveges, 2014.
+        # fullPeriodogramValue <- pgevd(max(output), location=location, scale=scale, shape=shape)
+        # print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramValue) / (K * L)))  # This formula is from Suveges, 2014.
 
-    #     perMin = t[3] - t[1]
-    #     perMax = t[length(t)] - t[1]
-    #     freqMax = 1 / perMin
-    #     freqMin = 1 / perMax
-    #     nfreq = length(y) * 10
-    #     freqStep = (freqMax - freqMin) / nfreq
-    #     f = seq(freqMin, by=freqStep, length.out=nfreq)
-    #     periodsToTry = 1 / f
-    #     output <- tcf(diff(y), p.try = periodsToTry, print.output = FALSE)$outpow
-    #     print("max of output")
-    #     print(max(output))
+        perMin = t[3] - t[1]
+        perMax = t[length(t)] - t[1]
+        freqMax = 1 / perMin
+        freqMin = 1 / perMax
+        nfreq = length(y) * 10
+        freqStep = (freqMax - freqMin) / nfreq
+        f = seq(freqMin, by=freqStep, length.out=nfreq)
+        periodsToTry = 1 / f
+        output <- tcf(diff(y), p.try = periodsToTry, print.output = FALSE)$outpow
+        print("max of output")
+        print(max(output))
 
-    #     print("Calculating return level corresponding to FAP = 0.01")
-    #     ppgevd <- function(x) pgevd(x, location=location, scale=scale, shape=shape)
-    #     ppgevdInv <- inverse(ppgevd)
-    #     print(1 - ((0.01 * K * L) / length(freqGrid)))
-    #     returnLevel <- ppgevdInv(1 - ((0.01 * K * L) / length(freqGrid)))
-    #     print(returnLevel)
+        # print("Calculating return level corresponding to FAP = 0.01")
+        # ppgevd <- function(x) pgevd(x, location=location, scale=scale, shape=shape)
+        # ppgevdInv <- inverse(ppgevd)
+        # print(1 - ((0.01 * K * L) / length(freqGrid)))
+        # returnLevel <- ppgevdInv(1 - ((0.01 * K * L) / length(freqGrid)))
+        # print(returnLevel)
 
-    #     # stopifnot(exprs={
-    #     #     all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
-    #     # })
+        # stopifnot(exprs={
+        #     all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
+        # })
 
-    #     fullPeriodogramValue <- pgevd(max(output), location=location, scale=scale, shape=shape)
-    #     fap <- nfreq * (1 - fullPeriodogramValue) / (K * L)
-    #     print(sprintf("FAP (original periodogram): %f", fap))
-    # }
+        fullPeriodogramValue <- pgevd(max(output), location=location, scale=scale, shape=shape)
+        fap <- nfreq * (1 - fullPeriodogramValue) / (K * L)
+        print(sprintf("FAP (original periodogram): %f", fap))
+    }
 
-    # return (fap);
+    return (fap);
 
     ###### Interpreting what FAP is good (from Baluev: https://academic.oup.com/mnras/article/385/3/1279/1010111):
     # (1) > Given some small critical value FAP* (usually between 10−3 and 0.1), we can claim that the candidate signal is statistically
