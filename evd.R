@@ -26,8 +26,60 @@ source('TCF3.0/intf_libtcf.R')
 source('standardize_periodogram.R')
 source('test_periodograms.R')
 library('goftest')  # install.packages("goftest")
+library('GoFKernel')
 
 statFunc <- function(a) { return (a) }
+
+fredivideFreqGrid <- function(freqGrid, L, K) {
+    # # Divide the frequency into L bins, each with K datapoints.
+    # ## From https://stackoverflow.com/questions/57889573/how-to-randomly-divide-interval-into-non-overlapping-spaced-bins-of-equal-lengt
+    # intervalLength <- length(freqGrid)
+    # nBins <- L
+    # binWidth <- K
+    # binMinDistance <- 1
+    # spaceToDistribute <- intervalLength - (nBins * binWidth + (nBins - 1) * binMinDistance)
+    # distances <- diff(floor(c(0, sort(runif(nBins))) * spaceToDistribute))
+    # startOfBin <- cumsum(distances) + (0:(nBins-1)) * 101
+    # KLinds <- data.frame(bin = 1:nBins, startOfBin = startOfBin, endOfBin = startOfBin + binWidth - 1)
+
+    # stopifnot(exprs={  # Check if the no. of frequencies in a bin is in fact equal to the desired number.
+    #     length(freqGrid[KLinds[1, 2]:KLinds[1, 3]]) == binWidth
+    # })
+
+    # KLfreqs <- c()
+    # for (i in 1:nrow(KLinds)) {
+    #     Kfreqs <- freqGrid[KLinds[i, 2]:KLinds[i, 3]]
+    #     KLfreqs <- append(KLfreqs, Kfreqs)
+    # }
+    # return (KLfreqs);
+
+    if ((K %% 2) == 0) {
+        safeDist <- K/2
+    }
+    else {
+        safeDist <- (K-1)/2
+    }
+    endIndex <- length(freqGrid) - safeDist
+    freqConsider <- freqGrid[safeDist:endIndex]
+    LcentralFreqs <- sample(freqConsider, L, replace=FALSE, prob=rep(1/length(freqConsider), length(freqConsider)))  # replace=FALSE to prevent sampling the same frequency again. According to Suveges, each of the L central freqeuencies is selected with equal probability, so we pass an equal probability vector.
+    KLfreqs <- c()
+    for (i in 1:length(LcentralFreqs)) {
+        index <- match(LcentralFreqs[i], freqGrid)
+        if ((K %% 2) == 0) {
+            k_ <- K/2
+            lowerIndx <- index-k_
+            upperIndx <- index+(K-k_-1)
+            KLfreqs <- append(KLfreqs, freqGrid[lowerIndx:upperIndx])
+        }
+        else {
+            kminusonehalf <- (K-1) / 2
+            lowerIndx <- index-kminusonehalf
+            upperIndx <- index+kminusonehalf
+            KLfreqs <- append(KLfreqs, freqGrid[lowerIndx:upperIndx])
+        }
+    }
+    return (KLfreqs);
+}
 
 evd <- function(
     period,
@@ -44,8 +96,10 @@ evd <- function(
 ) {
 
     R <- 1000  # No. of bootstrap resamples of the original time series.
-    K <- ofac   # No. of distinct frequencies in a frequency bin.  # TODO: Note that in Suveges, 2014, K = 16 is used and K is called as the oversampling factor - here we are not doing that, i.e. K is not the oversampling factor, ofac.
-    L <- 50    # No. of distinct frequency bins.
+    K <- ofac   # No. of distinct frequencies in a frequency bin.  # TODO: Note that in Suveges, 2014, K = 16 is used and K is called as the oversampling factor. So we also do that.
+    L <- 200    # No. of distinct frequency bins.
+    # In short, L allows capturing long-range dependence while K prevents spectral leakage -- from Suveges.
+    # TODO: We need to do some test by varying L and R to see which works better for each case?
 
     # Generate light curve using the parameters.
     yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits)
@@ -65,8 +119,8 @@ evd <- function(
     # Note: A general option for time-series with independent data is to use: random, uniform bootstrapping, but that can distort the repeating box-like shapes in the time series.
     bootTS <- tsboot(ts(y), statistic=statFunc, R=R, sim="fixed", l=period*25, n.sim=length(y))$t  # block resampling with fixed block lengths
     # Here, the block length is chosen to be slightly larger than the period (so that each block atleast contains a period -- a heuristic).
-
     # This answer: https://stats.stackexchange.com/a/317724 seems to say that block resampling resamples blocks with replacement.
+    # Also note that Suveges says that the marginal distribution of each of the bootstrapped resample time series must approximately be the same as the original time series.
 
     ### Create a frequency grid.
     ################## Ofir, 2014 - optimal frequency sampling - notes #################
@@ -109,50 +163,34 @@ evd <- function(
         length(freqGrid) >= K * L  # If this is not true, the FAP values could be greater than one, which is not realistic (this is my interpretation).
     })
 
-    # Divide the frequency into L bins, each with K datapoints.
-    ## From https://stackoverflow.com/questions/57889573/how-to-randomly-divide-interval-into-non-overlapping-spaced-bins-of-equal-lengt
-    intervalLength <- length(freqGrid)
-    nBins <- L
-    binWidth <- K
-    binMinDistance <- 1
-    spaceToDistribute <- intervalLength - (nBins * binWidth + (nBins - 1) * binMinDistance)
-    distances <- diff(floor(c(0, sort(runif(nBins))) * spaceToDistribute))
-    startOfBin <- cumsum(distances) + (0:(nBins-1)) * 10
-    KLinds <- data.frame(bin = 1:nBins, startOfBin = startOfBin, endOfBin = startOfBin + binWidth - 1)
-
-    stopifnot(exprs={  # Check if the no. of frequencies in a bin is in fact equal to the desired number.
-        length(freqGrid[KLinds[1, 2]:KLinds[1, 3]]) == binWidth
-    })
-
     # (2) Max of each partial periodogram
+    # Note that from Suveges paper, the reason for doing block maxima is: "The principal goal is to decrease the computational load due to a bootstrap. At the same time, the reduced frequency set should reflect the fundamental characteristics of a full periodogram: ..."
     # TODO: Need to use standardization/normalization somewhere! See astropy _statistics module under LombScargle to know at which step to normalize -- should we normalize these bootstrap periodograms or only the final full periodogram.
     maxima_R <- c()
     for (j in 1:R) {
-        partialPeriodograms <- c()
-        for (ll in 1:L) {
-            freqs <- freqGrid[KLinds[ll,2]:KLinds[ll,3]]
-            # TODO: Decide whether to use standardize or normal periodogram only for the partial ones?
-            if (algo == "BLS") {
-                partialPeriodogram <- bls(bootTS[j,], t, per.min=min(1/freqs), per.max=max(1/freqs), nper=K, bls.plot = FALSE)$spec
-                # partialPeriodogram <- unlist(standardPeriodogram(bootTS[j,], t, perMin=min(1/freqs), perMax=max(1/freqs), nper=K, plot = FALSE, noiseType=noiseType)[1])
-            }
-            else {
-                # For TCF, select K frequencies from freqs.
-                freqsTCF <- seq(min(freqs), max(freqs), length.out=K)
-                # print(freqsTCF)
-                partialPeriodogram <- tcf(diff(bootTS[j,]), p.try = 1 / freqsTCF, print.output = FALSE)$outpow
-                # partialPeriodogram <- unlist(standardPeriodogram(bootTS[j,], t, perMin=min(1/freqs), perMax=max(1/freqs), nper=K, plot = FALSE, noiseType=noiseType, algo="TCF")[1])
-            }
+        KLfreqs <- fredivideFreqGrid(freqGrid, L, K)
+        stopifnot(exprs={
+            length(KLfreqs) == K * L
+        })
 
-            # Note: If we use oversampling, then while it increases the flexibility to choose frequencies in the frequency grid, it also has important issues as noted in https://academic.oup.com/mnras/article/388/4/1693/981666:
-            # (1) "if we oversample the periodogram, the powers at the sampled frequencies are no longer independent..."
-            # To solve the above problem, we decluster the partial periodograms. Even without oversampling, the peaks tend to be clustered and we need to decluster the peaks.
-            # TODO: See performance with and without declustering.
-            partialPeriodogram <- decluster(partialPeriodogram, threshold = quantile(partialPeriodogram, probs=c(0.75)))
-
-            partialPeriodograms <- append(partialPeriodograms, partialPeriodogram)
+        # TODO: Decide whether to use standardize or normal periodogram only for the partial ones?
+        if (algo == "BLS") {
+            partialPeriodogram <- bls(bootTS[j,], t, per.min=min(1/KLfreqs), per.max=max(1/KLfreqs), nper=K*L, bls.plot = FALSE)$spec
+            # partialPeriodogram <- unlist(standardPeriodogram(bootTS[j,], t, perMin=min(1/freqs), perMax=max(1/freqs), nper=K, plot = FALSE, noiseType=noiseType)[1])
         }
-        maxima_R <- append(maxima_R, max(unlist(partialPeriodograms)))
+        else {
+            # For TCF, select K frequencies from freqs.
+            freqsTCF <- seq(min(KLfreqs), max(KLfreqs), length.out=K*L)
+            partialPeriodogram <- tcf(diff(bootTS[j,]), p.try = 1 / freqsTCF, print.output = FALSE)$outpow
+            # partialPeriodogram <- unlist(standardPeriodogram(bootTS[j,], t, perMin=min(1/freqs), perMax=max(1/freqs), nper=K, plot = FALSE, noiseType=noiseType, algo="TCF")[1])
+        }
+
+        # Note: If we use oversampling, then while it increases the flexibility to choose frequencies in the frequency grid, it also has important issues as noted in https://academic.oup.com/mnras/article/388/4/1693/981666:
+        # (1) "if we oversample the periodogram, the powers at the sampled frequencies are no longer independent..."
+        # To solve the above problem, we decluster the partial periodograms. Even without oversampling, the peaks tend to be clustered and we need to decluster the peaks.
+        # TODO: See performance with and without declustering.
+        partialPeriodogram <- decluster(partialPeriodogram, threshold = quantile(partialPeriodogram, probs=c(0.75)))
+        maxima_R <- append(maxima_R, max(partialPeriodogram))
     }
     print("Done calculating maxima...")
     print(maxima_R)
@@ -173,6 +211,9 @@ evd <- function(
     # See https://www.dataanalysisclassroom.com/lesson60/ for discussion on the fevd function.
     print(summary(fitEVD))
     distill(fitEVD)
+
+    print("+00000000000000000")
+    print(return.level(fitEVD, return.period=100))
 
     ## Get the fitted GEV parameters
     location <- findpars(fitEVD)$location[1]  # For some reason, the parameter values repeat 10 times, and all are same. So extract the first.
@@ -225,14 +266,12 @@ evd <- function(
 
         ## On original periodogram
         output <- bls(y, t, bls.plot = FALSE)$spec
-        print("max of output")
-        print(max(output))
 
-        # print("Calculating return level corresponding to FAP = 0.01")
-        # ppgevd <- function(x) pgevd(x, location=location, scale=scale, shape=shape)
-        # ppgevdInv <- inverse(ppgevd)
-        # returnLevel <- ppgevdInv(1 - ((0.01 * K * L) / length(freqGrid)))
-        # print(returnLevel)
+        print("Calculating return level corresponding to FAP = 0.01")
+        ppgevd <- function(x) pgevd(x, location=location, scale=scale, shape=shape)
+        ppgevdInv <- inverse(ppgevd)
+        returnLevel <- ppgevdInv(1 - ((0.01 * K * L) / length(freqGrid)))
+        print(returnLevel)
 
         # Verify that the period corresponding to the largest peak in standardized periodogram is the same as in original periodogram.
         # stopifnot(exprs={
