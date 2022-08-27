@@ -70,9 +70,6 @@ computeScatter <- function(
 }
 
 standardPeriodogram <- function(
-    y,  # time series values
-    t,  # time
-    ### NOTE: period, depth, and duration are only taken as inputs for plotting -- not used anywhere else. Remove them if you do not want, but then change the "main" argument to "plot" below.
     period,
     depth,
     duration,
@@ -82,20 +79,15 @@ standardPeriodogram <- function(
     plot = TRUE,
     perMin=t[3]-t[1],
     perMax=t[length(t)]-t[1],
-    nper=length(t)*10
+    nper=length(t)*10,
+    ntransits=10
 ){
-    if (noiseType == 1) {
-        set.seed(1)
-        y <- y + 0.3 * rnorm(length(y))  # scale by 0.3 to keep noise levels low.
-    }
-    else if (noiseType == 2) {
-        set.seed(1)
-        autoRegNoise <- arima.sim(model = list(order=c(1, 0, 1), ar=0.2, ma=0.2), n = length(y))  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
-        y <- y + autoRegNoise
-    }
+    # Generate light curve using the parameters.
+    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits)
+    y <- unlist(yt[1])
+    t <- unlist(yt[2])
 
     # Run periodogram algorithm.
-
     # By default, BLS tests these periods:
     # per.min = t[3]-t[1], ## min period to test
     # per.max = t[length(t)]-t[1]
@@ -147,10 +139,6 @@ standardPeriodogram <- function(
         cobsScatter <- cobs(periodsToTry, Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
     }
 
-    # plot(output$periodsTested[1:200], Scatter[1:200], type='l')
-    # lines(output$periodsTested[1:200], cobsScatter$fitted[1:200], col='red', type='l')
-    # return (1);
-
     normalizedPeriodogram <- periodogramTrendRemoved / cobsScatter$fitted
 
     if (algo == "BLS") {
@@ -159,6 +147,9 @@ standardPeriodogram <- function(
     else {
         returnVals <- list(normalizedPeriodogram, periodsToTry)
     }
+
+    # Call extreme value analysis code.
+    fap <- evd(period, depth, duration, noiseType=noiseType, algo=algo, ofac=2)
 
     if (plot) {
         if (algo == "BLS") {
@@ -215,7 +206,7 @@ standardPeriodogram <- function(
             SkewnessBefore <- skewness(output$spec)
             KurtosisBefore <- kurtosis(output$spec)
 
-            plot(hist.data$count, type='h', log='y', main=sprintf('Original BLS periodogram histogram:\nskewness: %.3f, kurtosis: %.3f', SkewnessBefore, KurtosisBefore), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+            plot(hist.data$count, type='h', log='y', main=sprintf('Original BLS periodogram histogram:\nskewness: %.3f, kurtosis: %.3f, FAP: %s', SkewnessBefore, KurtosisBefore, formatC(fap, format = "e", digits = 5)), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
             axis(1, at=1:length(hist.data$mids), labels=hist.data$mids)
             
             SkewnessAfter <- skewness(normalizedPeriodogram)
