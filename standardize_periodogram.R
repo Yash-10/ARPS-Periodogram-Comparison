@@ -34,6 +34,7 @@
 # }
 
 library(moments)
+source('test_periodograms.R')
 
 computeScatter <- function(
     cobsTrendResid,

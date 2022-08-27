@@ -1,4 +1,3 @@
-source('standardize_periodogram.R')
 library(moments)
 
 getLightCurve <- function(

@@ -23,7 +23,6 @@ library('cobs')
 library('EnvStats')
 source('BLS/bls.R')
 source('TCF3.0/intf_libtcf.R')
-source('standardize_periodogram.R')
 source('test_periodograms.R')
 library('goftest')  # install.packages("goftest")
 library('gbutils')  # https://search.r-project.org/CRAN/refmans/gbutils/html/cdf2quantile.html
@@ -105,7 +104,8 @@ calculateFAP <- function(
     periodogramMaxima
 ) {
     ppgevd <- function(x) pgevd(x, location=location, scale=scale, shape=shape)
-    calculatedFAP <- n * (1 - ppgevd(periodogramMaxima)) / (K * L)
+    calculatedFAP <- (n / (K * L)) * (1 - ppgevd(periodogramMaxima))
+    return (calculatedFAP);
 }
 
 evd <- function(
@@ -351,11 +351,11 @@ validate1_evd <- function(
     }
 }
 
-smallestPlanetDetectableTest <- function(
+smallestPlanetDetectableTest <- function(  # This function returns the smallest planet detectable (in terms of transit depth) using the FAP criterion.
     period,  # in days
     depths,  # in %
     duration,  # in hours
-    algo,  # either BLS or TCF
+    algo="BLS",  # either BLS or TCF
     noiseType=1  # 1 for Gaussian and 2 for autoregressive noise
 ) {
     faps <- c()
@@ -367,7 +367,7 @@ smallestPlanetDetectableTest <- function(
 
     plot(depths*1e4, faps, log='y', xlab='Depth (ppm)', ylab='FAP', type='o')
     if (noiseType == 1) {
-        abline(h=0.003, col='black', lty=2)  # FAP=0.003 corresponds to 3-sigma criterion for Gaussian -- commonly used in astronomy.
+        abline(h=0.01, col='black', lty=2)  # Here 1% FAP is used. Another choice is to use FAP=0.003, which corresponds to 3-sigma criterion for Gaussian -- commonly used in astronomy.
     }
     else {
         abline(h=0.002, col='black', lty=2)  # TODO: Decide what threshold FAP to use for the autoregressive case.
