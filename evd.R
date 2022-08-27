@@ -20,7 +20,6 @@ library('extRemes')
 library('boot')
 # library('GoFKernel')
 library('cobs')
-library('EnvStats')
 source('BLS/bls.R')
 source('TCF3.0/intf_libtcf.R')
 source('test_periodograms.R')
@@ -90,8 +89,8 @@ calculateReturnLevel <- function(
     K, L,  # These are parameters used for bootstrapping time series.
     n  # Length of the full frequency grid.
 ) {
-    ppgevd <- function(x) pgevd(x, location=location, scale=scale, shape=shape)
-    returnLevel <- cdf2quantile(1 - ((fap * K * L) / length(freqGrid)), ppgevd, tol=1e-4)  # tol passed for higher precision.
+    ppevd <- function(x) pevd(x, loc=location, scale=scale, shape=shape)
+    returnLevel <- cdf2quantile(1 - ((fap * K * L) / length(freqGrid)), ppevd, tol=1e-4)  # tol passed for higher precision.
     return (returnLevel);
 }
 
@@ -103,8 +102,8 @@ calculateFAP <- function(
     n,
     periodogramMaxima
 ) {
-    ppgevd <- function(x) pgevd(x, location=location, scale=scale, shape=shape)
-    calculatedFAP <- (n / (K * L)) * (1 - ppgevd(periodogramMaxima))
+    ppevd <- function(x) pevd(x, loc=location, scale=scale, shape=shape)
+    calculatedFAP <- (n / (K * L)) * (1 - ppevd(periodogramMaxima))
     return (calculatedFAP);
 }
 
@@ -124,7 +123,7 @@ evd <- function(
 
     R <- 1000  # No. of bootstrap resamples of the original time series.
     K <- ofac   # No. of distinct frequencies in a frequency bin.  # TODO: Note that in Suveges, 2014, K = 16 is used and K is called as the oversampling factor. So we also do that.
-    L <- 200    # No. of distinct frequency bins.
+    L <- 400    # No. of distinct frequency bins.
     # In short, L allows capturing long-range dependence while K prevents spectral leakage -- from Suveges.
     # TODO: We need to do some test by varying L and R to see which works better for each case?
 
@@ -149,7 +148,8 @@ evd <- function(
     # This answer: https://stats.stackexchange.com/a/317724 seems to say that block resampling resamples blocks with replacement.
     # Also note that Suveges says that the marginal distribution of each of the bootstrapped resample time series must approximately be the same as the original time series.
 
-    bootTS <- replicate(R, replicate(length(y), sample(y, 1, replace=TRUE)))
+    # bootTS <- replicate(R, replicate(length(y), sample(y, 1, replace=TRUE)))
+    bootTS <- replicate(R, sample(y, length(y), replace=TRUE))
     bootTS <- aperm(bootTS)  # This just permutes the dimension of bootTS - rows become columns and columns become rows - just done for easier indexing further in the code.
 
     ### Create a frequency grid.
@@ -185,8 +185,8 @@ evd <- function(
         freqStep <- (freqMax - freqMin) / (nfreq * ofac)  # Oversampled by a factor, `ofac`.
     }
 
-    freqGrid <- seq(from = freqMin, to = freqMax, by=freqStep)  # Goes from ~0.001 to 0.5 (NOTE: Since delta_t = 1, fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014).
-    sprintf("No. of frequencies in grid: %f", length(freqGrid))
+    freqGrid <- seq(from = freqMin, to = freqMax, by = freqStep)  # Goes from ~0.001 to 0.5 (NOTE: Since delta_t = 1, fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014).
+    print(sprintf("No. of frequencies in grid: %f", length(freqGrid)))
 
     stopifnot(exprs={
         all(freqGrid <= 0.5)  # No frequency must be greater than the Nyquist frequency.
@@ -223,7 +223,7 @@ evd <- function(
         maxima_R <- append(maxima_R, max(partialPeriodogram))
     }
     print("Done calculating maxima...")
-    print(maxima_R)
+    # print(maxima_R)
     # plot(maxima_R, type='l')
 
     # Decluster the peaks: https://search.r-project.org/CRAN/refmans/extRemes/html/decluster.html
@@ -249,18 +249,18 @@ evd <- function(
 
     # Diagnostic goodness-of-fit tests (we use the Anderson-Darling (AD) test: https://search.r-project.org/CRAN/refmans/DescTools/html/AndersonDarlingTest.html)
     # A simple reason why we use the Anderson–Darling (AD) test rather than Komogorov-Smirnov (KS) is that AD is able to detect better the situations in which F0 and F differ on the tails (that is, for extreme data), where H0: F = F0 and H1: F \neq F0.
-    result <- ad.test(maxima_R, null = "pgevd", location=location, scale=scale, shape=shape, nullname = "pgevd", estimated = FALSE)  # estimated = TRUE would have been fine as well since the gevd parameters (location, scale, shape) are estimated using the data itself - those three parameters are not data-agnostic. But here we use estimated = FALSE because using TRUE uses a different variant of AD test using the Braun's method which we do not want.
+    result <- ad.test(maxima_R, null = "pevd", loc=location, scale=scale, shape=shape, type="GEV", nullname = "pevd", estimated = FALSE)  # estimated = TRUE would have been fine as well since the gevd parameters (location, scale, shape) are estimated using the data itself - those three parameters are not data-agnostic. But here we use estimated = FALSE because using TRUE uses a different variant of AD test using the Braun's method which we do not want.
     print(result)
     print(sprintf("p-value for Anderson-Darling goodness-of-fit test of the periodogram maxima: %f", result$p.value))
 
     # Check if AD fit is good enough. If not, return a dummy fap value.
     # This check serves as a way to "automatically" find if the GEV fit is good and if it can be extrapolated to the full periodogram.
     # Suveges, 2014 suggests looking at the diagnostic plots before extrapolating to full periodogram, but that is cumbersome for large-scale simulations. Hence, this is a simple way to overcome manual fit quality inspection.
-    # TODO: Make this work.
-    # if (result$p.value < alpha) {  # Reject null hypothesis
-    #     dummyFap <- -999
-    #     return (dummyFap)
-    # }
+    if (result$p.value < alpha) {  # Reject null hypothesis: the maxima sample is in the favor of alternate hypothesis (that the sample comes from a different distribution than GEV).
+        fap <- -999
+        print("Anderson-Darling test failed while fitting GEV to the sample periodogram maxima. A dummy fap value will be returned with value -999.")
+        return (fap)
+    }
 
     # Diagnostic plots.
     if (plot) {
@@ -287,7 +287,7 @@ evd <- function(
         # periodsTested <- unlist(op[2])
         # periodEstimate <- periodsTested[which.max(output)]
 
-        # fullPeriodogramReturnLevel <- pgevd(max(output), location=location, scale=scale, shape=shape)
+        # fullPeriodogramReturnLevel <- pevd(max(output), loc=location, scale=scale, shape=shape)
         # print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))  # This formula is from Suveges, 2014.
 
         ## On original periodogram
@@ -299,7 +299,7 @@ evd <- function(
         # periodsTested <- unlist(op[2])
         # periodEstimate <- periodsTested[which.max(output)]
 
-        # fullPeriodogramValue <- pgevd(max(output), location=location, scale=scale, shape=shape)
+        # fullPeriodogramValue <- pevd(max(output), loc=location, scale=scale, shape=shape)
         # print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramValue) / (K * L)))  # This formula is from Suveges, 2014.
 
         perMin = t[3] - t[1]
@@ -320,7 +320,7 @@ evd <- function(
     # For interpretation, we would like to get FAP given a return level rather than giving return level from a given FAP.
     print("Calculating FAP...")
     fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), max(output))
-    print(sprintf("FAP = %.6f", fap))
+    print(sprintf("FAP = %.10f", fap))
 
     # Verify that the period corresponding to the largest peak in standardized periodogram is the same as in original periodogram.
     # stopifnot(exprs={
@@ -360,8 +360,8 @@ smallestPlanetDetectableTest <- function(  # This function returns the smallest 
 ) {
     faps <- c()
     for (depth in depths) {
-        fap <- evd(period, depth, duration, algo=algo, plot=FALSE)
-        sprintf("depth (ppm): %f, fap: %f", depth*1e4, fap)
+        fap <- evd(period, depth, duration, algo=algo, plot=FALSE, ofac=4)
+        print(sprintf("depth (ppm): %f, fap: %f", depth*1e4, fap))
         faps <- append(faps, fap)
     }
 
