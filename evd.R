@@ -26,7 +26,7 @@ source('TCF3.0/intf_libtcf.R')
 source('standardize_periodogram.R')
 source('test_periodograms.R')
 library('goftest')  # install.packages("goftest")
-library('GoFKernel')
+library('gbutils')  # https://search.r-project.org/CRAN/refmans/gbutils/html/cdf2quantile.html
 
 statFunc <- function(a) { return (a) }
 
@@ -54,10 +54,10 @@ fredivideFreqGrid <- function(freqGrid, L, K) {
     # return (KLfreqs);
 
     if ((K %% 2) == 0) {
-        safeDist <- K/2
+        safeDist <- 1 + K/2  # 1 is added just to be more safe at the edges of the frequency grid. This is just a hackery.
     }
     else {
-        safeDist <- (K-1)/2
+        safeDist <- 1 + (K-1)/2  # 1 is added just to be more safe at the edges of the frequency grid. This is just a hackery.
     }
     endIndex <- length(freqGrid) - safeDist
     freqConsider <- freqGrid[safeDist:endIndex]
@@ -66,19 +66,45 @@ fredivideFreqGrid <- function(freqGrid, L, K) {
     for (i in 1:length(LcentralFreqs)) {
         index <- match(LcentralFreqs[i], freqGrid)
         if ((K %% 2) == 0) {
-            k_ <- K/2
+            k_ <- as.integer(K/2)
             lowerIndx <- index-k_
             upperIndx <- index+(K-k_-1)
             KLfreqs <- append(KLfreqs, freqGrid[lowerIndx:upperIndx])
         }
         else {
-            kminusonehalf <- (K-1) / 2
+            kminusonehalf <- as.integer((K-1) / 2)
             lowerIndx <- index-kminusonehalf
             upperIndx <- index+kminusonehalf
             KLfreqs <- append(KLfreqs, freqGrid[lowerIndx:upperIndx])
         }
     }
     return (KLfreqs);
+}
+
+calculateReturnLevel <- function(
+    fap,   # Requested fap.
+    # Parameters of the fitted GEV model.
+    location,
+    scale,
+    shape,
+    K, L,  # These are parameters used for bootstrapping time series.
+    n  # Length of the full frequency grid.
+) {
+    ppgevd <- function(x) pgevd(x, location=location, scale=scale, shape=shape)
+    returnLevel <- cdf2quantile(1 - ((fap * K * L) / length(freqGrid)), ppgevd, tol=1e-4)  # tol passed for higher precision.
+    return (returnLevel);
+}
+
+calculateFAP <- function(
+    location,
+    scale,
+    shape,
+    K, L,
+    n,
+    periodogramMaxima
+) {
+    ppgevd <- function(x) pgevd(x, location=location, scale=scale, shape=shape)
+    calculatedFAP <- n * (1 - ppgevd(periodogramMaxima)) / (K * L)
 }
 
 evd <- function(
@@ -117,10 +143,13 @@ evd <- function(
     # Note that bootstrapping, by definition, is resampling "with replacement": https://en.wikipedia.org/wiki/Bootstrapping_(statistics)
     # We use block resampling irrespective of the noise (i.e. block resampling even if noise is uncorrelated in white Gaussian noise), because the underlying time-series is in the form of repeated box-like shapes, and we would like to preserve that in order to look more like the original time-series.
     # Note: A general option for time-series with independent data is to use: random, uniform bootstrapping, but that can distort the repeating box-like shapes in the time series.
-    bootTS <- tsboot(ts(y), statistic=statFunc, R=R, sim="fixed", l=period*25, n.sim=length(y))$t  # block resampling with fixed block lengths
+    # bootTS <- tsboot(ts(y), statistic=statFunc, R=R, sim="fixed", l=period*24, n.sim=length(y))$t  # block resampling with fixed block lengths
     # Here, the block length is chosen to be slightly larger than the period (so that each block atleast contains a period -- a heuristic).
     # This answer: https://stats.stackexchange.com/a/317724 seems to say that block resampling resamples blocks with replacement.
     # Also note that Suveges says that the marginal distribution of each of the bootstrapped resample time series must approximately be the same as the original time series.
+
+    bootTS <- replicate(R, replicate(length(y), sample(y, 1, replace=TRUE)))
+    bootTS <- aperm(bootTS)  # This just permutes the dimension of bootTS - rows become columns and columns become rows - just done for easier indexing further in the code.
 
     ### Create a frequency grid.
     ################## Ofir, 2014 - optimal frequency sampling - notes #################
@@ -160,7 +189,7 @@ evd <- function(
 
     stopifnot(exprs={
         all(freqGrid <= 0.5)  # No frequency must be greater than the Nyquist frequency.
-        length(freqGrid) >= K * L  # If this is not true, the FAP values could be greater than one, which is not realistic (this is my interpretation).
+        length(freqGrid) >= K * L  # K*L is ideally going to be less than N, otherwise the bootstrap has no benefit in terms of compuation time.
     })
 
     # (2) Max of each partial periodogram
@@ -212,9 +241,6 @@ evd <- function(
     print(summary(fitEVD))
     distill(fitEVD)
 
-    print("+00000000000000000")
-    print(return.level(fitEVD, return.period=100))
-
     ## Get the fitted GEV parameters
     location <- findpars(fitEVD)$location[1]  # For some reason, the parameter values repeat 10 times, and all are same. So extract the first.
     scale <- findpars(fitEVD)$scale[1]
@@ -248,7 +274,6 @@ evd <- function(
 
     # (4) Extrapolation to full periodogram
     print("Extrapolating to full periodogram...")
-    print("Calculating FAP...")
 
     ## Important note: It would be better to find an automatic way to judge whether we want to select a GEV model or not, instead of manually looking at the diagnostic plots. This is because we want to apply this method on several periodograms.
 
@@ -266,24 +291,6 @@ evd <- function(
 
         ## On original periodogram
         output <- bls(y, t, bls.plot = FALSE)$spec
-
-        print("Calculating return level corresponding to FAP = 0.01")
-        ppgevd <- function(x) pgevd(x, location=location, scale=scale, shape=shape)
-        ppgevdInv <- inverse(ppgevd)
-        returnLevel <- ppgevdInv(1 - ((0.01 * K * L) / length(freqGrid)))
-        print(returnLevel)
-
-        # Verify that the period corresponding to the largest peak in standardized periodogram is the same as in original periodogram.
-        # stopifnot(exprs={
-        #     all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
-        # })
-        ##### TODO: FAP calculation here is most likely not correct since here it is assumed that return level is same as full periodogram maxima, but it does not seem true.
-        quantInv <- function(distr, value) ecdf(distr)(value)
-        maxOutputIsWhichQuantile <- quantInv(maxima_R, max(output))
-
-        fullPeriodogramValue <- pgevd(maxOutputIsWhichQuantile, location=location, scale=scale, shape=shape)
-        fap <- nfreq * (1 - fullPeriodogramValue) / (K * L)
-        print(sprintf("FAP (original periodogram): %f", fap))
     }
     else {
         # op <- getStandardPeriodogram(period, depth, duration, noiseType=noiseType, algo=algo, ntransits=ntransits)
@@ -303,24 +310,21 @@ evd <- function(
         f = seq(freqMin, by=freqStep, length.out=nfreq)
         periodsToTry = 1 / f
         output <- tcf(diff(y), p.try = periodsToTry, print.output = FALSE)$outpow
-        print("max of output")
-        print(max(output))
-
-        # print("Calculating return level corresponding to FAP = 0.01")
-        # ppgevd <- function(x) pgevd(x, location=location, scale=scale, shape=shape)
-        # ppgevdInv <- inverse(ppgevd)
-        # print(1 - ((0.01 * K * L) / length(freqGrid)))
-        # returnLevel <- ppgevdInv(1 - ((0.01 * K * L) / length(freqGrid)))
-        # print(returnLevel)
-
-        # stopifnot(exprs={
-        #     all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
-        # })
-
-        fullPeriodogramValue <- pgevd(max(output), location=location, scale=scale, shape=shape)
-        fap <- nfreq * (1 - fullPeriodogramValue) / (K * L)
-        print(sprintf("FAP (original periodogram): %f", fap))
     }
+
+    # print("Calculating return level...")
+    # returnLevel <- calculateReturnLevel(fap, location, scale, shape, K, L, length(freqGrid))
+    # print(sprintf("Return level corresponding to FAP = %f: %f", fap, returnLevel))
+
+    # For interpretation, we would like to get FAP given a return level rather than giving return level from a given FAP.
+    print("Calculating FAP...")
+    fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), max(output))
+    print(sprintf("FAP = %.6f", fap))
+
+    # Verify that the period corresponding to the largest peak in standardized periodogram is the same as in original periodogram.
+    # stopifnot(exprs={
+    #     all.equal(periodEstimate, periodsTested[which.max(output)], tolerance = sqrt(.Machine$double.eps))
+    # })
 
     return (fap);
 
