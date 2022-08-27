@@ -53,6 +53,7 @@ fredivideFreqGrid <- function(freqGrid, L, K) {
     # }
     # return (KLfreqs);
 
+    # TODO: Need to verify this works as expected for large oversampling factors. I think that the hackery below might still yield errors for larger ofac values than 2.
     if ((K %% 2) == 0) {
         safeDist <- 1 + K/2  # 1 is added just to be more safe at the edges of the frequency grid. This is just a hackery.
     }
