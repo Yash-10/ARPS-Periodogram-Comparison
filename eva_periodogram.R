@@ -89,8 +89,10 @@ calculateReturnLevel <- function(
     K, L,  # These are parameters used for bootstrapping time series.
     n  # Length of the full frequency grid.
 ) {
-    ppevd <- function(x) pgev(x, loc=location, scale=scale, shape=shape)
-    returnLevel <- cdf2quantile(1 - ((fap * K * L) / length(freqGrid)), ppevd, tol=1e-4)  # tol passed for higher precision.
+    returnLevel <- qevd(
+        1 - ((fap * K * L) / n),
+        loc=location, scale=scale, shape=shape, type="GEV"
+    )
     return (returnLevel);
 }
 
@@ -102,8 +104,7 @@ calculateFAP <- function(
     n,
     periodogramMaxima
 ) {
-    ppevd <- function(x) pgev(x, loc=location, scale=scale, shape=shape)
-    calculatedFAP <- (n / (K * L)) * (1 - ppevd(periodogramMaxima))
+    calculatedFAP <- (n / (K * L)) * (1 - pevd(periodogramMaxima, loc=location, scale=scale, shape=shape, type="GEV"))
     return (calculatedFAP);
 }
 
@@ -123,7 +124,7 @@ evd <- function(
 
     R <- 1000  # No. of bootstrap resamples of the original time series.
     K <- ofac   # No. of distinct frequencies in a frequency bin.  # TODO: Note that in Suveges, 2014, K = 16 is used and K is called as the oversampling factor. So we also do that.
-    L <- 400    # No. of distinct frequency bins.
+    L <- 1000    # No. of distinct frequency bins.
     # In short, L allows capturing long-range dependence while K prevents spectral leakage -- from Suveges.
     # TODO: We need to do some test by varying L and R to see which works better for each case?
 
@@ -244,16 +245,18 @@ evd <- function(
     distill(fitEVD)
 
     ## Get the fitted GEV parameters
-    location <- findpars(fitEVD)$location[1]  # For some reason, the parameter values repeat 10 times, and all are same. So extract the first.
+    location <- findpars(fitEVD)$location[1]  # In extRemes, the parameter values repeat R times (for stationary models), and all are same. So extract the first.
     scale <- findpars(fitEVD)$scale[1]
     shape <- findpars(fitEVD)$shape[1]
 
+    print(sprintf("location: %f, scale: %f, shape: %f", location, scale, shape))
+
     # Diagnostic goodness-of-fit tests (we use the Anderson-Darling (AD) test: https://search.r-project.org/CRAN/refmans/DescTools/html/AndersonDarlingTest.html)
     # A simple reason why we use the Anderson–Darling (AD) test rather than Komogorov-Smirnov (KS) is that AD is able to detect better the situations in which F0 and F differ on the tails (that is, for extreme data), where H0: F = F0 and H1: F \neq F0.
-    result <- ad.test(maxima_R, null = "pgev", loc=location, scale=scale, shape=shape, type="GEV", nullname = "pgev", estimated = FALSE)  # estimated = TRUE would have been fine as well since the gevd parameters (location, scale, shape) are estimated using the data itself - those three parameters are not data-agnostic. But here we use estimated = FALSE because using TRUE uses a different variant of AD test using the Braun's method which we do not want.
+    result <- ad.test(maxima_R, null = "pevd", loc=location, scale=scale, shape=shape, nullname = "pevd", estimated = FALSE)  # estimated = TRUE would have been fine as well since the gevd parameters (location, scale, shape) are estimated using the data itself - those three parameters are not data-agnostic. But here we use estimated = FALSE because using TRUE uses a different variant of AD test using the Braun's method which we do not want.
     print(result)
     print(sprintf("p-value for Anderson-Darling goodness-of-fit test of the periodogram maxima: %f", result$p.value))
-
+    # TODO: Usign pgevd gives diff FAP values than using pevd??
     # Check if AD fit is good enough. If not, return a dummy fap value.
     # This check serves as a way to "automatically" find if the GEV fit is good and if it can be extrapolated to the full periodogram.
     # Suveges, 2014 suggests looking at the diagnostic plots before extrapolating to full periodogram, but that is cumbersome for large-scale simulations. Hence, this is a simple way to overcome manual fit quality inspection.
@@ -277,6 +280,8 @@ evd <- function(
     # (4) Extrapolation to full periodogram
     print("Extrapolating to full periodogram...")
 
+    # TODO: Most important TODO -- I think I am misinterpreting extrpolation: We fit maxima of periodograms on white noise sequences but are extrapolating to a true transit time series...this does NOT look good. I need to find to which full periodogram we must extrapolate to get FAP estimates.
+
     ## Important note: It would be better to find an automatic way to judge whether we want to select a GEV model or not, instead of manually looking at the diagnostic plots. This is because we want to apply this method on several periodograms.
 
     # Compute full periodogram (note: standardized periodogram is used).
@@ -288,7 +293,7 @@ evd <- function(
         # periodsTested <- unlist(op[2])
         # periodEstimate <- periodsTested[which.max(output)]
 
-        # fullPeriodogramReturnLevel <- pgev(max(output), loc=location, scale=scale, shape=shape)
+        # fullPeriodogramReturnLevel <- pevd(max(output), loc=location, scale=scale, shape=shape)
         # print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramReturnLevel) / (K * L)))  # This formula is from Suveges, 2014.
 
         ## On original periodogram
@@ -300,7 +305,7 @@ evd <- function(
         # periodsTested <- unlist(op[2])
         # periodEstimate <- periodsTested[which.max(output)]
 
-        # fullPeriodogramValue <- pgev(max(output), loc=location, scale=scale, shape=shape)
+        # fullPeriodogramValue <- pevd(max(output), loc=location, scale=scale, shape=shape)
         # print(sprintf("FAP (standardized periodogram): %f", nfreq * (1 - fullPeriodogramValue) / (K * L)))  # This formula is from Suveges, 2014.
 
         perMin = t[3] - t[1]
@@ -314,13 +319,12 @@ evd <- function(
         output <- tcf(diff(y), p.try = periodsToTry, print.output = FALSE)$outpow
     }
 
-    # print("Calculating return level...")
-    # returnLevel <- calculateReturnLevel(fap, location, scale, shape, K, L, length(freqGrid))
-    # print(sprintf("Return level corresponding to FAP = %f: %f", fap, returnLevel))
+    print("Calculating return level...")
+    returnLevel <- calculateReturnLevel(0.01, location, scale, shape, K, L, length(freqGrid))
+    print(sprintf("Return level corresponding to FAP = %f: %f", 0.01, returnLevel))
 
     # For interpretation, we would like to get FAP given a return level rather than giving return level from a given FAP.
     print("Calculating FAP...")
-    ### TODO: FAP CALCILATION CHANGED AFTER USING PEVD INSTEAD OF PGEVD FROM ENVSTATS.
     fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), max(output))
     print(sprintf("FAP = %.10f", fap))
 
