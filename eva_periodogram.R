@@ -134,6 +134,11 @@ evd <- function(
     y <- unlist(yt[1])
     t <- unlist(yt[2])
 
+    # Special case (TCF fails if absolutely no noise -- so add a very small amount of noise just to prevent any errors).
+    if (noiseType == 0 && algo == "TCF") {
+        y <- y + 10^-10 * rnorm(length(y))
+    }
+
     # (1) Bootstrap the time series.
     # The reason why we first bootstrap the time series and then take block maxima rather than simply bootstrapping block maxima of original series is mentioned in first paragraph in https://personal.eur.nl/zhou/Research/WP/bootstrap_revision.pdf
     # Non-parametric bootstrap with replacement of blocks.
@@ -251,6 +256,7 @@ evd <- function(
 
     print(sprintf("location: %f, scale: %f, shape: %f", location, scale, shape))
 
+    ## Important note: It would be better to find an automatic way to judge whether we want to select a GEV model or not, instead of manually looking at the diagnostic plots. This is because we want to apply this method on several periodograms. Hence we perform the A-D test.
     # Diagnostic goodness-of-fit tests (we use the Anderson-Darling (AD) test: https://search.r-project.org/CRAN/refmans/DescTools/html/AndersonDarlingTest.html)
     # A simple reason why we use the Anderson–Darling (AD) test rather than Komogorov-Smirnov (KS) is that AD is able to detect better the situations in which F0 and F differ on the tails (that is, for extreme data), where H0: F = F0 and H1: F \neq F0.
     result <- ad.test(maxima_R, null = "pevd", loc=location, scale=scale, shape=shape, nullname = "pevd", estimated = FALSE)  # estimated = TRUE would have been fine as well since the gevd parameters (location, scale, shape) are estimated using the data itself - those three parameters are not data-agnostic. But here we use estimated = FALSE because using TRUE uses a different variant of AD test using the Braun's method which we do not want.
@@ -279,10 +285,6 @@ evd <- function(
 
     # (4) Extrapolation to full periodogram
     print("Extrapolating to full periodogram...")
-
-    # TODO: Most important TODO -- I think I am misinterpreting extrpolation: We fit maxima of periodograms on white noise sequences but are extrapolating to a true transit time series...this does NOT look good. I need to find to which full periodogram we must extrapolate to get FAP estimates.
-
-    ## Important note: It would be better to find an automatic way to judge whether we want to select a GEV model or not, instead of manually looking at the diagnostic plots. This is because we want to apply this method on several periodograms.
 
     # Compute full periodogram (note: standardized periodogram is used).
     # TODO: Since standardized periodogram's scale has changed (due to scatter-removal), it lies at the end of gev cdf, thus always giving fap=0.000 -- fix this: either remove the scatter or do some hackery to prevent this from happening.
@@ -373,6 +375,7 @@ smallestPlanetDetectableTest <- function(  # This function returns the smallest 
     }
 
     plot(depths*1e4, faps, log='y', xlab='Depth (ppm)', ylab='FAP', type='o')
+    axis(1, at=1:length(depths), labels=depths*1e4)
     if (noiseType == 1) {
         abline(h=0.01, col='black', lty=2)  # Here 1% FAP is used. Another choice is to use FAP=0.003, which corresponds to 3-sigma criterion for Gaussian -- commonly used in astronomy.
     }

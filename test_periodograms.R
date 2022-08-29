@@ -44,11 +44,6 @@ getLightCurve <- function(
 
     t <- seq(1, length(y), 1)
 
-    # Special case (TCF fails if absolutely no noise -- so add a very small amount of noise just to prevent any errors).
-    if (noiseType == 0 && algo == "TCF") {
-        y <- y + 10^-10 * rnorm(length(y))
-    }
-
     if (noiseType == 1) {
         set.seed(1)
         y <- y + rnorm(length(y), mean = 0, sd = 0.0001)  # 0.01% Gaussian noise.
