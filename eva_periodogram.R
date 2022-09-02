@@ -421,9 +421,7 @@ smallestPlanetDetectableTest <- function(  # This function returns the smallest 
 # This function finds the root of the equation: FAP(depth, **params) - 0.01 = 0, i.e., given the period and duration of a planet,
 # it finds the depth corresponding to the case FAP = 0.01 called the limiting_depth. So any transit with depth < limiting_depth
 # is statistically insignificant using the FAP = 0.01 criterion.
-depthEquation <- function(depth) {
-    period <- 3
-    duration <- 1/36
+depthEquation <- function(depth, period=3, duration=1/36) {
     result <- evd(period, depth, duration, ofac=1, plot = FALSE)
     return (result[1] - 0.01);
 }
@@ -435,6 +433,7 @@ findLimitingDepth <- function() {
     print(uniroot(depthEquation, c(0.004, 3)))  # Lower and upper limits set using the range of depths typically observed in Kepler (40 ppm - 30000 ppm).
 }
 
+# This function is only for a quick verification test. One would not expect to get the exact depth where the planet starts to become insignificant.
 periodDurationDepthTest <- function(
     algo="BLS",
     ofac=1
