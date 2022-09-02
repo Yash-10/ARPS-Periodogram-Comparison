@@ -104,6 +104,10 @@ calculateFAP <- function(
     n,
     periodogramMaxima
 ) {
+    print("==============================================================")
+    print(n / (K * L))
+    print(periodogramMaxima)
+    print("==============================================================")
     calculatedFAP <- (n / (K * L)) * (1 - pevd(periodogramMaxima, loc=location, scale=scale, shape=shape, type="GEV"))
     return (calculatedFAP);
 }
@@ -320,6 +324,8 @@ evd <- function(
         periodsToTry = 1 / f
         output <- tcf(diff(y), p.try = periodsToTry, print.output = FALSE)$outpow
     }
+    # Decluster the full periodogram as well.
+    output <- decluster(output, threshold = quantile(output, probs=c(0.75)))
 
     print("Calculating return level...")
     returnLevel <- calculateReturnLevel(0.01, location, scale, shape, K, L, length(freqGrid))
@@ -405,7 +411,7 @@ smallestPlanetDetectableTest <- function(  # This function returns the smallest 
     }
 
     png(filename=sprintf("%sdays_%shours.png", period, duration * period * 24))
-    plot(depths*1e4, faps, xlab='Depth (ppm)', ylab='FAP', type='o', ylim=c(1e-7, 1))
+    plot(depths*1e4, faps, xlab='Depth (ppm)', ylab='FAP', type='o', ylim=c(1e-7, 0.1))
     axis(1, at=1:length(depths), labels=depths*1e4)
     if (noiseType == 1) {
         abline(h=0.01, col='black', lty=2)  # Here 1% FAP is used. Another choice is to use FAP=0.003, which corresponds to 3-sigma criterion for Gaussian -- commonly used in astronomy.

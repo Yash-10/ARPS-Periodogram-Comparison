@@ -150,7 +150,8 @@ standardPeriodogram <- function(
     }
 
     # Call extreme value analysis code.
-    fap <- evd(period, depth, duration, noiseType=noiseType, algo=algo, ofac=2)
+    result <- evd(period, depth, duration, noiseType=noiseType, algo=algo, ofac=2)
+    fap <- result[1]
 
     if (plot) {
         if (algo == "BLS") {
