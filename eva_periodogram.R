@@ -118,11 +118,25 @@ evd <- function(
     # Note: noiseType is not used for adding noise to series, but instead used for deciding the way of resampling.
     algo="BLS",
     ntransits=10,
-    plot = TRUE,
+    plot=TRUE,
     ofac=2,  # ofac is also called as "samples per peak" sometimes.
-    useOptimalFreqSampling = FALSE,  # If want to use the optimal frequency sampling from Ofir, 2014: delta_freq = q / (s * os), where s is whole time series duration, os is oversampling factor and q is the duty cycle (time in single transit / total time series duration).
+    useOptimalFreqSampling=FALSE,  # If want to use the optimal frequency sampling from Ofir, 2014: delta_freq = q / (s * os), where s is whole time series duration, os is oversampling factor and q is the duty cycle (time in single transit / total time series duration).
     alpha=0.05  # Significance level for hypothesis testing on the GEV fit on periodogram maxima. TODO: How to choose a significance level beforehand - any heuristics to follow?
 ) {
+
+    # L, R, noiseType, ntransits must be integers.
+    stopifnot(exprs={
+        L %% 1 == 0
+        R %% 1 == 0
+        noiseType %% 1 == 0
+        ntransits %% 1 == 0
+    })
+
+    # Oversampling factor must be an integer greater than or equal to zero.
+    stopifnot(exprs={
+        ofac %% 1 == 0  # Checks for integer.
+        ofac >= 1
+    })
 
     K <- ofac  # No. of distinct frequencies in a frequency bin.  # Note that in Suveges, 2014, K = 16 is used and K is called as the oversampling factor. So we also do that.
     # In short, L allows capturing long-range dependence while K prevents spectral leakage -- from Suveges.
@@ -321,7 +335,8 @@ evd <- function(
         output <- tcf(diff(y), p.try = periodsToTry, print.output = FALSE)$outpow
     }
     # Decluster the full periodogram as well.
-    output <- decluster(output, threshold = quantile(output, probs=c(0.75)))
+    # TODO: Decide whether full periodogram must be declustered??
+    # output <- decluster(output, threshold = quantile(output, probs=c(0.75)))
 
     print("Calculating return level...")
     returnLevel <- calculateReturnLevel(0.01, location, scale, shape, K, L, length(freqGrid))

@@ -81,7 +81,8 @@ standardPeriodogram <- function(
     perMin=t[3]-t[1],
     perMax=t[length(t)]-t[1],
     nper=length(t)*10,
-    ntransits=10
+    ntransits=10,
+    ofac=1
 ){
     # Generate light curve using the parameters.
     yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits)
@@ -150,7 +151,8 @@ standardPeriodogram <- function(
     }
 
     # Call extreme value analysis code.
-    result <- evd(period, depth, duration, noiseType=noiseType, algo=algo, ofac=2)
+    result <- evd(period, depth, duration, noiseType=noiseType, algo=algo, ofac=ofac)
+    print(sprintf("FAP = %.10f", result[1]))
     fap <- result[1]
 
     if (plot) {

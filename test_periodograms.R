@@ -90,11 +90,3 @@ getStandardPeriodogram <- function(
     output <- standardPeriodogram(unlist(yt[1]), unlist(yt[2]), period, depth, duration, algo=algo, noiseType = 0, plot=FALSE)  # 0 noise type we add custom noise in this function, so we should not add it again.
     return (output);
 }
-
-extensiveTest <- function(
-
-){
-    # period_depth_duration_values <- c(
-    #     c()
-    # )
-}
