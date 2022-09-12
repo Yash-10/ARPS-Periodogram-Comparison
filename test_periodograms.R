@@ -43,17 +43,20 @@ getLightCurve <- function(
     }
 
     t <- seq(1, length(y), 1)
+    gaussStd <- 0.0001
 
     if (noiseType == 1) {
         set.seed(1)
-        noise <- rnorm(length(y), mean = 0, sd = 0.0001)
+        noise <- rnorm(length(y), mean = 0, sd = gaussStd)
         y <- y + noise  # 0.01% Gaussian noise.
         noiseStd <- sd(noise)
         noiseIQR <- IQR(noise)
     }
     else if (noiseType == 2) {
         set.seed(1)
-        autoRegNoise <- arima.sim(model = list(order=c(1, 0, 1), ar=0.2, ma=0.2), n = length(y)) / 1e4  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
+        # Note that autoregresive noise has been scaled by `gaussStd` so that the range of values in both Gaussian and autoregressive case look similar.
+        # We can as well remove that scaling, but using it allows us to compare Gaussian and autoregressive cases much easier since then the only difference is that Gaussian is uncorrelated and autoregressive is correlated noise. And we don't need to worry about autoregressive and Gaussian noises being on different scales.
+        autoRegNoise <- arima.sim(model = list(order=c(1, 0, 1), ar=0.2, ma=0.2), n = length(y)) * gaussStd  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
         y <- y + autoRegNoise
         noiseStd <- sd(autoRegNoise)
         noiseIQR <- IQR(autoRegNoise)
