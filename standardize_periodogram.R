@@ -88,28 +88,25 @@ standardPeriodogram <- function(
     yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits)
     y <- unlist(yt[1])
     t <- unlist(yt[2])
+    noiseStd <- unlist(yt[3])
+    noiseIQR <- unlist(yt[4])
 
     # Run periodogram algorithm.
-    # By default, BLS tests these periods:
-    # per.min = t[3]-t[1], ## min period to test
-    # per.max = t[length(t)]-t[1]
-    # f = seq(freq.min,by=freq.step,length.out=nfreq)
-    # per = 1/f
+    freqStep <- (freqMax - freqMin) / (nfreq * ofac)
+    freqGrid <- seq(from = freqMin, to = freqMax, by = freqStep)  # Goes from ~0.001 to 0.5 (NOTE: Since delta_t = 1, fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014).
+    print(sprintf("No. of frequencies in grid: %f", length(freqGrid)))
+    stopifnot(exprs={
+        all(freqGrid <= 0.5)  # No frequency must be greater than the Nyquist frequency.
+        length(freqGrid) >= K * L  # K*L is ideally going to be less than N, otherwise the bootstrap has no benefit in terms of compuation time.
+    })
+
     if (algo == "BLS") {
-        output <- bls(y, t, bls.plot = FALSE, per.min=perMin, per.max=perMax, nper=nper)
+        # Note that BLS requires fmin >= 1/length(t). So we end at the default perMax rather than going up to max(1/freqGrid) to prevent errors.
+        output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=perMax, nper=length(freqGrid))
     }
     else {
-        perMin = t[3] - t[1]
-        perMax = t[length(t)] - t[1]
-        freqMax = 1 / perMin
-        freqMin = 1 / perMax
-        nfreq = length(y) * 10
-        freqStep = (freqMax - freqMin) / nfreq
-        f = seq(freqMin, by=freqStep, length.out=nfreq)
-        periodsToTry = 1 / f
-        # Note that since TCF looks for spikes rather than box shapes, we need to do a differencing operation (using the default: lag 1). This is done even if the time-series is stationary (which is the case in simulations).
-        # The reason for doing this despite stationarity is because TCF only looks for spikes rather than box shapes.
-        output <- tcf(diff(y), p.try = periodsToTry)
+        periodsToTry = 1 / freqGrid
+        output <- tcf(diff(y), p.try = periodsToTry, print.output = FALSE)
     }
 
     # (1) Remove trend in periodogram
@@ -135,6 +132,9 @@ standardPeriodogram <- function(
     if (algo == "BLS") {
         lambdaScatter <- 1
         cobsScatter <- cobs(output$periodsTested, Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
+        cobss50 <- cobs(output$periodsTested, periodogramTrendRemoved, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")  # If tau = 0.5 and lambda = 0 => Median regression fit.
+        cobss501 <- cobs(output$periodsTested, periodogramTrendRemoved, ic='BIC', tau=0.9, lambda=lambdaTrend, constraint="increase")
+        cobss502 <- cobs(output$periodsTested, periodogramTrendRemoved, ic='BIC', tau=0.99, lambda=lambdaTrend)
     }
     else if (algo == "TCF") {
         lambdaScatter <- 1
@@ -171,12 +171,12 @@ standardPeriodogram <- function(
                 widths = c(1)
             )     # Widths of the two columns
 
-            plot(t, y, type='l', main=sprintf("period: %.3f days, depth: %.3f (pct), duration: %.3f (hrs)", period, depth, period * 24 * duration), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)')
+            plot(t, y, type='l', main=sprintf("period: %.3f days, depth: %.5f (pct), duration: %.3f (hrs)\nnoise std dev: %f, noise IQR: %f", period, depth, period * 24 * duration, noiseStd, noiseIQR), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)')
             acfEstimate <- acf(y, plot = FALSE)
             lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
             plot(acfEstimate, main=sprintf("P(Ljung-Box) = %s", lJStats[3]), cex=2)
 
-            plot(cobsxy50$x, output$spec, type = 'l', main=sprintf("Original BLS periodogram and cobs fit, lambdaTrend=%d", lambdaTrend), log='x', xlab='log Period (hrs)', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            plot(cobsxy50$x, output$spec, type = 'l', main=sprintf("Original BLS periodogram and cobs fit, lambdaTrend=%d, ofac=%d", lambdaTrend, ofac), log='x', xlab='log Period (hrs)', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
             lines(cobsxy50$x, cobsxy50$fitted, type = 'l', col='red')
             lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
             lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
@@ -186,8 +186,10 @@ standardPeriodogram <- function(
                 legend=c("trend fit", "tau=0.9", "tau=0.99")
             )
 
-            plot(cobsxy50$x, periodogramTrendRemoved, type = 'l', main=sprintf("BLS periodogram (detrended), lamScatter=%d, windowLength=%d", lambdaScatter, scatterWindowLength), log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-            lines(cobsxy50$x, cobsScatter$fitted, type = 'l', col='blue')
+            plot(cobsxy50$x, periodogramTrendRemoved, type = 'l', main=sprintf("BLS periodogram (detrended), lamScatter=%d, windowLength=%d\n", lambdaScatter, scatterWindowLength), log='x', xlab='log Period', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            lines(cobss50$x, cobss50$fitted, type = 'l', col='cyan')
+            lines(cobss501$x, cobss501$fitted, type = 'l', col='cyan')
+            lines(cobss502$x, cobss502$fitted, type = 'l', col='magenta')
             # lines(cobsxy50$x, Scatter, type = 'l', col='red')
             legend(x="topleft", lty=1, text.font = 6,
                 col="blue", text.col="black",
@@ -239,13 +241,13 @@ standardPeriodogram <- function(
                 widths = c(1)
             )     # Widths of the two columns
 
-            plot(t, y, type='l', main=sprintf("period: %.3f days, depth: %.3f (pct), duration: %.3f (hrs)", period, depth, period * 24 * duration), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)')
+            plot(t, y, type='l', main=sprintf("period: %.3f days, depth: %.5f (pct), duration: %.3f (hrs)\nnoise std dev: %f, noise IQR: %f", period, depth, period * 24 * duration, noiseStd, noiseIQR), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)')
             acfEstimate <- acf(y, plot = FALSE)
             lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
             plot(acfEstimate, main=sprintf("P(Ljung-Box) = %s", lJStats[3]), cex=2)
 
             # Note that when I write log period, I mean period on log-scale rather than log of the period.
-            plot(cobsxy50$x, output$outpow, type = 'l', main=sprintf("Original TCF periodogram and cobs fit, lambdaTrend=%d", lambdaTrend), log='x', xlab='log Period (hrs)', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+            plot(cobsxy50$x, output$outpow, type = 'l', main=sprintf("Original TCF periodogram, lambdaTrend=%d, ofac=%d", lambdaTrend, ofac), log='x', xlab='log Period (hrs)', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
             lines(cobsxy50$x, cobsxy50$fitted, type = 'l', col='red')
             lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
             lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')

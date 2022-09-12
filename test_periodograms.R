@@ -46,12 +46,17 @@ getLightCurve <- function(
 
     if (noiseType == 1) {
         set.seed(1)
-        y <- y + rnorm(length(y), mean = 0, sd = 0.0001)  # 0.01% Gaussian noise.
+        noise <- rnorm(length(y), mean = 0, sd = 0.0001)
+        y <- y + noise  # 0.01% Gaussian noise.
+        noiseStd <- sd(noise)
+        noiseIQR <- IQR(noise)
     }
     else if (noiseType == 2) {
         set.seed(1)
-        autoRegNoise <- arima.sim(model = list(order=c(1, 0, 1), ar=0.2, ma=0.2), n = length(y))  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
+        autoRegNoise <- arima.sim(model = list(order=c(1, 0, 1), ar=0.2, ma=0.2), n = length(y)) / 1e4  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
         y <- y + autoRegNoise
+        noiseStd <- sd(autoRegNoise)
+        noiseIQR <- IQR(autoRegNoise)
     }
 
     # Print some things
@@ -59,7 +64,7 @@ getLightCurve <- function(
     print(noquote(paste("Depth = ", sprintf("%.3f", (depth / 100) * 1))))
     print(noquote(paste("Transit duration = ", sprintf("%.3f", inTransitTime))))
 
-    return (list(y, t))
+    return (list(y, t, noiseStd, noiseIQR))
 
     # # Add noise to time series, if any.
     # if (noiseType == 1) {
