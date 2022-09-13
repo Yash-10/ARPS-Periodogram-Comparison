@@ -6,9 +6,13 @@ getLightCurve <- function(
     duration,  # What transit duration (as a fraction of the period) do you want to have in your light curve. eg: 1/24.
     # Note: The definition of transit duration used in the code is how many points there are at the in-transit level whereas in astronomy it is, how many points are there before you reach the constant value again taking into account points in going from 1 --> inTransitValue.
     noiseType=0,  # 1 --> Gaussian noise, 2 --> Autoregressive noise. If autoregressive noise, (1, 0, 1) model is used. To change it, need to change the source code.
-    ntransits=10  # No. of transits in the whole time series. Note: It must be >=3, otherwise BLS/TCF matching filter periodograms might not work.
+    ntransits=10,  # No. of transits in the whole time series. Note: It must be >=3, otherwise BLS/TCF matching filter periodograms might not work.
     ### VIMP note: While giving inputs, never give a period like 1 since duration would be a fraction of 1 which is a float number and since the code rounds the result, results might not be correct.
     ### To prevent such issues, if your `duration` is, say, 1/24 times the period (eg: 1 hr duration for a 1 day period), then pass period = 24 and duration = 1/24 instead of period = 1 and duration = 1/24.
+    gaussStd=1e-4,
+    ar=0.2,
+    ma=0.2,
+    order=c(1, 0, 1)  # ARMA, no differencing.
 ) {
     stopifnot(exprs = {
         period > 0
@@ -20,7 +24,8 @@ getLightCurve <- function(
     })
     # Create a simulated planet transit time series based on period, depth, and transit duration.
     inTransitValue = 1 - (depth / 100) * 1
-    inTransitTime = round(duration * period * 24)  # inTransitTime is the actual absolute in-transit time (in hours).
+    # TODO: do not do round() below since then 1/48 and 1/36 for a 3-day period is the same, which MUST NOT be. UPDATE: STILL does not work.
+    inTransitTime = duration * period * 24  # inTransitTime is the actual absolute in-transit time (in hours).
     constTime = period * 24 - 2 - inTransitTime
 
     stopifnot(exprs = {
@@ -43,7 +48,6 @@ getLightCurve <- function(
     }
 
     t <- seq(1, length(y), 1)
-    gaussStd <- 0.0001
 
     if (noiseType == 1) {
         set.seed(1)
@@ -56,15 +60,19 @@ getLightCurve <- function(
         set.seed(1)
         # Note that autoregresive noise has been scaled by `gaussStd` so that the range of values in both Gaussian and autoregressive case look similar.
         # We can as well remove that scaling, but using it allows us to compare Gaussian and autoregressive cases much easier since then the only difference is that Gaussian is uncorrelated and autoregressive is correlated noise. And we don't need to worry about autoregressive and Gaussian noises being on different scales.
-        autoRegNoise <- arima.sim(model = list(order=c(1, 0, 1), ar=0.2, ma=0.2), n = length(y)) * gaussStd  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
+        autoRegNoise <- arima.sim(model = list(order=order, ar=ar, ma=ma), n = length(y)) * gaussStd  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
         y <- y + autoRegNoise
         noiseStd <- sd(autoRegNoise)
         noiseIQR <- IQR(autoRegNoise)
     }
+    else if (noiseType == 0) {
+        noiseStd <- 0
+        noiseIQR <- 0
+    }
 
     # Print some things
     print(noquote(paste("Period = ", sprintf("%.3f", period))))
-    print(noquote(paste("Depth = ", sprintf("%.3f", (depth / 100) * 1))))
+    print(noquote(paste("Depth = ", sprintf("%.6f", (depth / 100) * 1))))
     print(noquote(paste("Transit duration = ", sprintf("%.3f", inTransitTime))))
 
     return (list(y, t, noiseStd, noiseIQR))

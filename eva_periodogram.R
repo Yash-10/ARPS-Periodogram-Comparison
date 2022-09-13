@@ -25,8 +25,10 @@ source('TCF3.0/intf_libtcf.R')
 source('test_periodograms.R')
 library('goftest')  # install.packages("goftest")
 library('gbutils')  # https://search.r-project.org/CRAN/refmans/gbutils/html/cdf2quantile.html
+source('autoarima.R')
 
-statFunc <- function(a) { return (a) }
+
+# statFunc <- function(a) { return (a) }
 
 fredivideFreqGrid <- function(freqGrid, L, K) {
     # # Divide the frequency into L bins, each with K datapoints.
@@ -121,7 +123,13 @@ evd <- function(
     plot=TRUE,
     ofac=2,  # ofac is also called as "samples per peak" sometimes.
     useOptimalFreqSampling=FALSE,  # If want to use the optimal frequency sampling from Ofir, 2014: delta_freq = q / (s * os), where s is whole time series duration, os is oversampling factor and q is the duty cycle (time in single transit / total time series duration).
-    alpha=0.05  # Significance level for hypothesis testing on the GEV fit on periodogram maxima. TODO: How to choose a significance level beforehand - any heuristics to follow?
+    alpha=0.05,  # Significance level for hypothesis testing on the GEV fit on periodogram maxima. TODO: How to choose a significance level beforehand - any heuristics to follow?
+    # Parameters for controlling noise. NOTE: `gaussStd` is considered for noiseType=2 as well for appropriate scaling of the autoregressive noise.
+    # HENCE IT IS IMPORTANT TO KEEP THE SAME gaussStd value WHEN COMPARING BETWEEN AUTOREGRESSIVE AND GAUSSIAN NOISE CASES.
+    gaussStd=1e-4,  # 0.01% Gaussian noise
+    ar=0.2,
+    ma=0.2,
+    order=c(1, 0, 1)
 ) {
 
     # L, R, noiseType, ntransits must be integers.
@@ -143,9 +151,11 @@ evd <- function(
     # TODO: We need to do some test by varying L and R to see which works better for each case?
 
     # Generate light curve using the parameters.
-    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits)
+    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd, ar=ar, ma=ma, order=order)
     y <- unlist(yt[1])
     t <- unlist(yt[2])
+    acfEstimate <- acf(y, plot = FALSE)
+    print(sprintf("[parameters: gaussStd = %f, ar = %f, ma = %f, order = %s] ACF at lag-1: %s", gaussStd, ar, ma, paste(order, collapse=" "), acfEstimate$acf[[2]]))
 
     # Special case (TCF fails if absolutely no noise -- so add a very small amount of noise just to prevent any errors).
     if (noiseType == 0 && algo == "TCF") {
@@ -228,16 +238,10 @@ evd <- function(
 
         if (algo == "BLS") {
             partialPeriodogram <- bls(bootTS[j,], t, per.min=min(1/KLfreqs), per.max=max(1/KLfreqs), nper=K*L, bls.plot = FALSE)$spec
-            # partialPeriodogram <- unlist(standardPeriodogram(bootTS[j,], t, perMin=min(1/freqs), perMax=max(1/freqs), nper=K, plot = FALSE, noiseType=noiseType)[1])
         }
         else {
-            # For TCF, select K frequencies from freqs.
-            freqsTCF <- seq(min(KLfreqs), max(KLfreqs), length.out=K*L)
-            stopifnot(exprs={
-                length(freqsTCF) == K * L
-            })
-            partialPeriodogram <- tcf(diff(bootTS[j,]), p.try = 1 / freqsTCF, print.output = FALSE)$outpow
-            # partialPeriodogram <- unlist(standardPeriodogram(bootTS[j,], t, perMin=min(1/freqs), perMax=max(1/freqs), nper=K, plot = FALSE, noiseType=noiseType, algo="TCF")[1])
+            resid <- getResidForTCF(bootTS[j,])
+            partialPeriodogram <- tcf(resid, p.try = 1 / KLfreqs, print.output = FALSE)$outpow
         }
 
         # Note: If we use oversampling, then while it increases the flexibility to choose frequencies in the frequency grid, it also has important issues as noted in https://academic.oup.com/mnras/article/388/4/1693/981666:
@@ -290,8 +294,8 @@ evd <- function(
     # Diagnostic plots.
     if (plot) {
         # TODO: Why ci fails sometimes? See some discussion here: https://www.facebook.com/groups/254966138199366/posts/1167467316949239/
-        # try(plot(fitEVD))
-        try(plot(fitEVD, "trace"))
+        try(plot(fitEVD))
+        # try(plot(fitEVD, "trace"))
         # return.level(fitEVD)
         # return.level(fitEVD, do.ci = TRUE)
         # ci(fitEVD, return.period = c(2, 20, 100))
@@ -301,11 +305,12 @@ evd <- function(
     # (4) Extrapolation to full periodogram
     print("Extrapolating to full periodogram...")
 
-    # Compute full periodogram (note: standardized periodogram is used).
+    # Compute full periodogram.
     # TODO: Since standardized periodogram's scale has changed (due to scatter-removal), it lies at the end of gev cdf, thus always giving fap=0.000 -- fix this: either remove the scatter or do some hackery to prevent this from happening.
     if (algo == "BLS") {
         ## On original periodogram
-        output <- output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=perMax, nper=length(freqGrid))$spec
+        # Note: BLS requires fmin >= 1/T (where T is time duration of time series), hence we set a limit to per.max rather than going up to max(1/freqGrid), to prevent errors.
+        output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=perMax, nper=length(freqGrid))$spec
         # # Detrend the periodogram.
         # TODO: Intelligently decide when detrending is necessary and when not. Maybe use statistical trend tests?
         # lambdaTrend <- 1
@@ -317,7 +322,8 @@ evd <- function(
     }
     else {
         periodsToTry = 1 / freqGrid
-        output <- tcf(diff(y), p.try = periodsToTry, print.output = FALSE)$outpow
+        resid <- getResidForTCF(y)
+        output <- tcf(resid, p.try = periodsToTry, print.output = FALSE)$outpow
         # # Detrend the periodogram.
         # lambdaTrend <- 1
         # cobsxy50 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")
@@ -333,7 +339,7 @@ evd <- function(
     fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), max(output))
     print(sprintf("FAP = %.10f", fap))
 
-    return (c(fap, summary(fitEVD)$AIC));
+    return (c(fap, summary(fitEVD)$AIC)); # Note: c() can be used since all the values returned are of same type. If ever they are of different types, use list() instead.
 
     ###### Interpreting what FAP is good (from Baluev: https://academic.oup.com/mnras/article/385/3/1279/1010111):
     # (1) > Given some small critical value FAP* (usually between 10−3 and 0.1), we can claim that the candidate signal is statistically
@@ -357,26 +363,42 @@ validate1_evd <- function(  # Checks whether the values in the bootstrapped resa
     }
 }
 
-plotSensitivtyPeriods <- function(
-    periods
-) {
-    ldepths <- c()
-    for (period in periods) {
-        d <- findLimitingDepth(period=period, duration=1/36, ofac=1, ntransits=10, noiseType=1)
-        ldepths <- append(ldepths, d)
-    }
-    plot(periods, ldepths, type='l')
-}
+# plotSensitivtyPeriods <- function(
+#     periods
+# ) {
+#     ldepths <- c()
+#     for (period in periods) {
+#         d <- findLimitingDepth(period=period, duration=1/36, ofac=1, ntransits=10, noiseType=1)
+#         ldepths <- append(ldepths, d)
+#     }
+#     plot(periods, ldepths, type='l')
+# }
 
 plotSensitivtyDurations <- function(
-    durations
+    durations,
+    algo="BLS"
 ) {
     ldepths <- c()
     for (duration in durations) {
-        d <- findLimitingDepth(period=3, duration=duration, ofac=1, ntransits=10, noiseType=1)
+        d <- findLimitingDepth(period=3, duration=duration, algo=algo, ofac=1, ntransits=10, noiseType=1, gaussStd=1e-4)
         ldepths <- append(ldepths, d)
     }
-    plot(durations, ldepths, type='l')
+    # plot(durations, ldepths, type='l')
+    return (ldepths);
+}
+
+plotSensitivtyARnoiseLevel <- function(
+    ARMA_coeffs,  # list of {ar, ma} coefficients.
+    algo="BLS"
+) {
+    ldepths <- c()
+    for (ARMA_coeff in ARMA_coeffs) {
+        ar <- ARMA_coeff[1]
+        ma <- ARMA_coeff[2]
+        d <- findLimitingDepth(period=3, duration=1/36, algo=algo, ofac=1, ntransits=10, noiseType=2, ar=ar, ma=ma, order=c(1, 0, 1))  # TODO: Also allow order as argument to function instead of harcoding.
+        ldepths <- append(ldepths, d)
+    }
+    return (ldepths);
 }
 
 findbestLandR <- function(  # Finds the optimal L and R values via grid search. It uses the AIC for finding the best {L, R} pair.
@@ -439,17 +461,18 @@ smallestPlanetDetectableTest <- function(  # This function returns the smallest 
 # This function finds the root of the equation: FAP(depth, **params) - 0.01 = 0, i.e., given the period and duration of a planet,
 # it finds the depth corresponding to the case FAP = 0.01 called the limiting_depth. So any transit with depth < limiting_depth
 # is statistically insignificant using the FAP = 0.01 criterion.
-depthEquation <- function(depth, period=3, duration=1/36, ofac=1, ntransits=10, noiseType=1) {
-    result <- evd(period, depth, duration, ofac=ofac, ntransits=ntransits, noiseType=noiseType, plot = FALSE)
+depthEquation <- function(depth, period=3, algo="BLS", duration=1/36, ofac=1, ntransits=10, noiseType=1, gaussStd=1e-4, ar=0.2, ma=0.2, order=c(1, 0, 1)) {
+    result <- evd(period, depth, duration, ofac=ofac, algo=algo, ntransits=ntransits, noiseType=noiseType, plot = FALSE, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
     return (result[1] - 0.01);
 }
 
 # This function is a high-level wrapper for `findLimitingDepth` that prints the limiting depth.
 # Root solving is done using the Newton-Raphson iteration method via the `uniroot` function in R.
-findLimitingDepth <- function(period, duration, ofac=1, ntransits=10, noiseType=1) {
+findLimitingDepth <- function(period, duration, ofac=1, algo="BLS", ntransits=10, noiseType=1, gaussStd=1e-4, ar=0.2, ma=0.2, order=c(1, 0, 1)) {
     print('Finding limiting depth corresponding to FAP = 0.01, the fixed threshold FAP...')
-    de <- function(depth) { return (depthEquation(depth, period=period, duration=duration, ofac=1, ntransits=10, noiseType=1)); }
-    return (uniroot(de, c(0.004, 3))$root);  # Lower and upper limits set using the range of depths typically observed in Kepler (40 ppm - 30000 ppm).
+    de <- function(depth) { return (depthEquation(depth, period=period, duration=duration, ofac=ofac, algo=algo, ntransits=ntransits, noiseType=noiseType, gaussStd, ar=ar, ma=ma, order=order)); }
+    # TODO: In future, we can set the upper limit of interval depth (currently, 0.3) intelligently based on the IQR of noise, for example.
+    return (uniroot(de, interval=c(0.004, 0.3), extendInt = "yes", maxiter=5)$root);  # Lower limit set using the lower limit of depths typically observed in Kepler (40 ppm). Upper limit is not set the same as the upper limit of typical Kepler planets since we are interested in smaller planets only (FAP for large planets is anyways going to approach zero).
 }
 
 # This function is only for a quick verification test. One would not expect to get the exact depth where the planet starts to become insignificant.
