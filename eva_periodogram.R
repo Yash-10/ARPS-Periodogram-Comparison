@@ -18,14 +18,12 @@
 
 library('extRemes')
 library('boot')
-# library('GoFKernel')
 library('cobs')
 source('BLS/bls.R')
 source('TCF3.0/intf_libtcf.R')
 source('test_periodograms.R')
 library('goftest')  # install.packages("goftest")
 library('gbutils')  # https://search.r-project.org/CRAN/refmans/gbutils/html/cdf2quantile.html
-source('autoarima.R')
 
 
 # statFunc <- function(a) { return (a) }
@@ -129,7 +127,8 @@ evd <- function(
     gaussStd=1e-4,  # 0.01% Gaussian noise
     ar=0.2,
     ma=0.2,
-    order=c(1, 0, 1)
+    order=c(1, 0, 1),
+    res=1.  # Resolution for creating the time series. Refer getLightCurve from test_periodogram.R
 ) {
 
     # L, R, noiseType, ntransits must be integers.
@@ -151,9 +150,10 @@ evd <- function(
     # TODO: We need to do some test by varying L and R to see which works better for each case?
 
     # Generate light curve using the parameters.
-    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd, ar=ar, ma=ma, order=order)
+    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, res=res)
     y <- unlist(yt[1])
     t <- unlist(yt[2])
+
     acfEstimate <- acf(y, plot = FALSE)
     print(sprintf("[parameters: gaussStd = %f, ar = %f, ma = %f, order = %s] ACF at lag-1: %s", gaussStd, ar, ma, paste(order, collapse=" "), acfEstimate$acf[[2]]))
 
@@ -232,16 +232,22 @@ evd <- function(
     maxima_R <- c()
     for (j in 1:R) {
         KLfreqs <- fredivideFreqGrid(freqGrid, L, K)
+
         stopifnot(exprs={
             length(KLfreqs) == K * L
+            length(bootTS[j,]) == length(y)
         })
 
         if (algo == "BLS") {
             partialPeriodogram <- bls(bootTS[j,], t, per.min=min(1/KLfreqs), per.max=max(1/KLfreqs), nper=K*L, bls.plot = FALSE)$spec
+            # partialPeriodogram <- standardizeAPeriodogram(partialPeriodogram)
+            # plot(partialPeriodogram$periodsTested, normalizedP, type='l')
+            # return (1);
         }
-        else {
-            resid <- getResidForTCF(bootTS[j,])
-            partialPeriodogram <- tcf(resid, p.try = 1 / KLfreqs, print.output = FALSE)$outpow
+        else if (algo == "TCF") {
+            # TODO: Speed bottlenck: calculating residuals is currently the bottleneck which takes enormous times for extreme value analysis on TCF to complete. Can we speedup it up somehow? 
+            residTCF <- getResidForTCF(bootTS[j,])
+            partialPeriodogram <- tcf(residTCF, p.try = 1 / KLfreqs, print.output = FALSE)$outpow
         }
 
         # Note: If we use oversampling, then while it increases the flexibility to choose frequencies in the frequency grid, it also has important issues as noted in https://academic.oup.com/mnras/article/388/4/1693/981666:
@@ -311,23 +317,12 @@ evd <- function(
         ## On original periodogram
         # Note: BLS requires fmin >= 1/T (where T is time duration of time series), hence we set a limit to per.max rather than going up to max(1/freqGrid), to prevent errors.
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=perMax, nper=length(freqGrid))$spec
-        # # Detrend the periodogram.
-        # TODO: Intelligently decide when detrending is necessary and when not. Maybe use statistical trend tests?
-        # lambdaTrend <- 1
-        # cobsxy50 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")
-        # output <- cobsxy50$resid
-        # if (min(output) < 0) {
-        #     output <- output + abs(min(output)) + 1e-10
-        # }
+        # output <- standardizeAPeriodogram(output)
     }
     else {
         periodsToTry = 1 / freqGrid
-        resid <- getResidForTCF(y)
-        output <- tcf(resid, p.try = periodsToTry, print.output = FALSE)$outpow
-        # # Detrend the periodogram.
-        # lambdaTrend <- 1
-        # cobsxy50 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")
-        # output <- cobsxy50$resid
+        residTCF <- getResidForTCF(y)
+        output <- tcf(residTCF, p.try = periodsToTry, print.output = FALSE)$outpow
     }
 
     print("Calculating return level...")
@@ -472,7 +467,8 @@ findLimitingDepth <- function(period, duration, ofac=1, algo="BLS", ntransits=10
     print('Finding limiting depth corresponding to FAP = 0.01, the fixed threshold FAP...')
     de <- function(depth) { return (depthEquation(depth, period=period, duration=duration, ofac=ofac, algo=algo, ntransits=ntransits, noiseType=noiseType, gaussStd, ar=ar, ma=ma, order=order)); }
     # TODO: In future, we can set the upper limit of interval depth (currently, 0.3) intelligently based on the IQR of noise, for example.
-    return (uniroot(de, interval=c(0.004, 0.3), extendInt = "yes", maxiter=5)$root);  # Lower limit set using the lower limit of depths typically observed in Kepler (40 ppm). Upper limit is not set the same as the upper limit of typical Kepler planets since we are interested in smaller planets only (FAP for large planets is anyways going to approach zero).
+    # Note that extendInt = "yes" is passed so that limiting depths for already significant planets (that extend beyond the passed interval) can also be availed using this function. So extendInt is added only for allowing applications to various types of planets.
+    return (uniroot(de, interval=c(0.004, 0.3), extendInt = "yes", tol=1e-4)$root);  # Lower limit set using the lower limit of depths typically observed in Kepler (40 ppm). Upper limit is not set the same as the upper limit of typical Kepler planets since we are interested in smaller planets only (FAP for large planets is anyways going to approach zero).
 }
 
 # This function is only for a quick verification test. One would not expect to get the exact depth where the planet starts to become insignificant.

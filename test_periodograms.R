@@ -4,6 +4,7 @@ getLightCurve <- function(
     period,  # What period (in days) do you want to have in your light curve, will be a single value. eg: 1/3/5/7/9.
     depth,  # What depth (in % of the star's presumed constant level which is 1) do you want to have in your light curve, will be a single value. eg: 0.01/0.05/0.1/0.15/0.2.
     duration,  # What transit duration (as a fraction of the period) do you want to have in your light curve. eg: 1/24.
+    res=1,  # Resolution to create the light curve. If res = 1, then the light curve cannot handle things that happen on scales less than an hour. Hence, a 1hr transit duration and 0.75hr transit duration would be treated same. If you want to avoid this, set a higher resolution using this parameter.
     # Note: The definition of transit duration used in the code is how many points there are at the in-transit level whereas in astronomy it is, how many points are there before you reach the constant value again taking into account points in going from 1 --> inTransitValue.
     noiseType=0,  # 1 --> Gaussian noise, 2 --> Autoregressive noise. If autoregressive noise, (1, 0, 1) model is used. To change it, need to change the source code.
     ntransits=10,  # No. of transits in the whole time series. Note: It must be >=3, otherwise BLS/TCF matching filter periodograms might not work.
@@ -25,8 +26,8 @@ getLightCurve <- function(
     # Create a simulated planet transit time series based on period, depth, and transit duration.
     inTransitValue = 1 - (depth / 100) * 1
     # TODO: do not do round() below since then 1/48 and 1/36 for a 3-day period is the same, which MUST NOT be. UPDATE: STILL does not work.
-    inTransitTime = duration * period * 24  # inTransitTime is the actual absolute in-transit time (in hours).
-    constTime = period * 24 - 2 - inTransitTime
+    inTransitTime = duration * period * 24 * res  # inTransitTime is the actual absolute in-transit time (in hours).
+    constTime = (period * 24 - 2 - inTransitTime) * res
 
     stopifnot(exprs = {
         inTransitValue < 1
@@ -36,18 +37,21 @@ getLightCurve <- function(
     })
 
     # The deemed constant value will be 1 and the transits would be scaled with respect to 1. For eg: 1 --> 0.998 --> 1 --> 0.998 ...
-    y <- rep(1, each = constTime) # Start with some constant level.
+    y <- rep(1, each = as.integer(constTime*res)) # Start with some constant level.
 
     for (n in 1:ntransits) {
-        for (j in 0:inTransitTime) {
+        endt <- as.integer(inTransitTime*res)
+        for (j in 0:endt) {
             y <- append(y, inTransitValue)
         }
-        for (j in 1:constTime) {
+        constt <- as.integer(constTime*res)
+        for (j in 1:constt) {
             y <- append(y, 1)
         }
     }
 
-    t <- seq(1, length(y), 1)
+    tIncrement <- 1 / res
+    t <- seq(from=0, by = tIncrement, length.out = length(y))
 
     if (noiseType == 1) {
         set.seed(1)
@@ -69,6 +73,10 @@ getLightCurve <- function(
         noiseStd <- 0
         noiseIQR <- 0
     }
+
+    stopifnot(exprs={
+        length(y) == length(t)
+    })
 
     # Print some things
     print(noquote(paste("Period = ", sprintf("%.3f", period))))

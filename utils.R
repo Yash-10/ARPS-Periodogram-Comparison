@@ -1,4 +1,5 @@
 ## Utility functions.
+library(forecast)
 
 getResidForTCF <- function(
     y  # Time series (must not be differenced because it is done internally).
