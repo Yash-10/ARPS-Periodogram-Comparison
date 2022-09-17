@@ -116,6 +116,7 @@ evd <- function(
     R=1000,  # No. of bootstrap resamples of the original time series.
     noiseType=1,  # Noise model present in y. Either 1 (white gaussian noise) or 2 (autoregressive noise).
     # Note: noiseType is passed as argument to the `getLightCurve` function.
+    useStandardization=FALSE,  # If true, uses standardized periodograms for GEV fitting and extrapolation.
     algo="BLS",
     ntransits=10,
     plot=TRUE,
@@ -239,7 +240,19 @@ evd <- function(
         })
 
         if (algo == "BLS") {
-            partialPeriodogram <- bls(bootTS[j,], t, per.min=min(1/KLfreqs), per.max=max(1/KLfreqs), nper=K*L, bls.plot = FALSE)$spec
+            out <- bls(bootTS[j,], t, per.min=min(1/KLfreqs), per.max=max(1/KLfreqs), nper=K*L, bls.plot = FALSE)
+            if (useStandardization) {
+                partialPeriodogram <- standardizeAPeriodogram(out, algo="BLS")
+            }
+            else {
+                partialPeriodogram <- out$spec
+            }
+
+            # trend<-cobs(partialPeriodogram$periodsTested, partialPeriodogram$spec, ic='BIC', tau=0.5, lambda=1.)$fitted
+            # plot(partialPeriodogram$periodsTested, partialPeriodogram$spec, type='l')
+            # lines(partialPeriodogram$periodsTested, trend, type='l', col='red')
+            # print(length(partialPeriodogram$periodsTested))
+            # return (1);
             # partialPeriodogram <- standardizeAPeriodogram(partialPeriodogram)
             # plot(partialPeriodogram$periodsTested, normalizedP, type='l')
             # return (1);
@@ -247,7 +260,13 @@ evd <- function(
         else if (algo == "TCF") {
             # TODO: Speed bottlenck: calculating residuals is currently the bottleneck which takes enormous times for extreme value analysis on TCF to complete. Can we speedup it up somehow? 
             residTCF <- getResidForTCF(bootTS[j,])
-            partialPeriodogram <- tcf(residTCF, p.try = 1 / KLfreqs, print.output = FALSE)$outpow
+            out <- tcf(residTCF, p.try = 1 / KLfreqs, print.output = FALSE)
+            if (useStandardization) {
+                partialPeriodogram <- standardizeAPeriodogram(out, algo="TCF")
+            }
+            else {
+                partialPeriodogram <- out$outpow
+            }
         }
 
         # Note: If we use oversampling, then while it increases the flexibility to choose frequencies in the frequency grid, it also has important issues as noted in https://academic.oup.com/mnras/article/388/4/1693/981666:
@@ -316,13 +335,24 @@ evd <- function(
     if (algo == "BLS") {
         ## On original periodogram
         # Note: BLS requires fmin >= 1/T (where T is time duration of time series), hence we set a limit to per.max rather than going up to max(1/freqGrid), to prevent errors.
-        output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=perMax, nper=length(freqGrid))$spec
-        # output <- standardizeAPeriodogram(output)
+        output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=perMax, nper=length(freqGrid))
+        if (useStandardization) {
+            output <- standardizeAPeriodogram(output, algo="BLS")
+        }
+        else {
+            output <- output$spec
+        }
     }
     else {
         periodsToTry = 1 / freqGrid
         residTCF <- getResidForTCF(y)
-        output <- tcf(residTCF, p.try = periodsToTry, print.output = FALSE)$outpow
+        output <- tcf(residTCF, p.try = periodsToTry, print.output = FALSE)
+        if (useStandardization) {
+            output <- standardizeAPeriodogram(output, algo="TCF")
+        }
+        else {
+            output <- output$outpow
+        }
     }
 
     print("Calculating return level...")
