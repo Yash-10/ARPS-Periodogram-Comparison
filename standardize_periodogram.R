@@ -180,6 +180,8 @@ standardPeriodogram <- function(
     }
 
     if (plot) {  # TODO: For plotting, there is a lot of repetition, remove and factor it out.
+        dev.new(width=20, height=10)
+
         cexVal = 1.7
         mat1 <- matrix(c(
             1, 3, 4,
