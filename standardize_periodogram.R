@@ -113,6 +113,7 @@ standardPeriodogram <- function(
     perMax <- t[length(t)] - t[1]
     freqMin <- 1 / perMax
     freqMax <- 1 / perMin
+    nfreq <- length(y) * 10  # This particular value is taken from BLS - see bls.R. Here, it is used for both BLS and TCF.
 
     # Run periodogram algorithm.
     freqStep <- (freqMax - freqMin) / (nfreq * ofac)
