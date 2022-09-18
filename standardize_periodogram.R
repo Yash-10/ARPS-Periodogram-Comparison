@@ -109,6 +109,11 @@ standardPeriodogram <- function(
     noiseStd <- unlist(yt[3])
     noiseIQR <- unlist(yt[4])
 
+    perMin <- t[3] - t[1]
+    perMax <- t[length(t)] - t[1]
+    freqMin <- 1 / perMax
+    freqMax <- 1 / perMin
+
     # Run periodogram algorithm.
     freqStep <- (freqMax - freqMin) / (nfreq * ofac)
     freqGrid <- seq(from = freqMin, to = freqMax, by = freqStep)  # Goes from ~0.001 to 0.5 (NOTE: Since delta_t = 1, fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014).
