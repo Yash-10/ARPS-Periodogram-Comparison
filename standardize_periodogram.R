@@ -119,10 +119,6 @@ standardPeriodogram <- function(
     freqStep <- (freqMax - freqMin) / (nfreq * ofac)
     freqGrid <- seq(from = freqMin, to = freqMax, by = freqStep)  # Goes from ~0.001 to 0.5 (NOTE: Since delta_t = 1, fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014).
     print(sprintf("No. of frequencies in grid: %f", length(freqGrid)))
-    stopifnot(exprs={
-        all(freqGrid <= 0.5)  # No frequency must be greater than the Nyquist frequency.
-        length(freqGrid) >= K * L  # K*L is ideally going to be less than N, otherwise the bootstrap has no benefit in terms of compuation time.
-    })
 
     if (algo == "BLS") {
         # Note that BLS requires fmin >= 1/length(t). So we end at the default perMax rather than going up to max(1/freqGrid) to prevent errors.
