@@ -23,11 +23,12 @@ getLightCurve <- function(
         duration <= 1
         ntransits >= 0
     })
+
     # Create a simulated planet transit time series based on period, depth, and transit duration.
     inTransitValue = 1 - (depth / 100) * 1
     # TODO: do not do round() below since then 1/48 and 1/36 for a 3-day period is the same, which MUST NOT be. UPDATE: STILL does not work.
-    inTransitTime = duration * period * 24 * res  # inTransitTime is the actual absolute in-transit time (in hours).
-    constTime = (period * 24 - 2 - inTransitTime) * res
+    inTransitTime = duration * period * 24  # inTransitTime is the actual absolute in-transit time (in hours).
+    constTime = (period * 24 - 2 - inTransitTime)
 
     stopifnot(exprs = {
         inTransitValue < 1
@@ -36,22 +37,27 @@ getLightCurve <- function(
         constTime > 0
     })
 
+    # First generate the time epochs.
+    tIncrement <- 1 / res
+    tEnd <- constTime + ntransits * (2 + inTransitTime + constTime)
+    t <- seq(from = 0, by = tIncrement, to = tEnd)
+
     # The deemed constant value will be 1 and the transits would be scaled with respect to 1. For eg: 1 --> 0.998 --> 1 --> 0.998 ...
-    y <- rep(1, each = as.integer(constTime*res)) # Start with some constant level.
+    y <- rep(1.0, each = as.integer(constTime*res)) # Start with some constant level.
 
     for (n in 1:ntransits) {
-        endt <- as.integer(inTransitTime*res)
-        for (j in 0:endt) {
+        y <- append(y, seq(from = 1, to = inTransitValue, length.out = res+1))  # Decrement from 1 to depth.
+        endt <- as.integer(inTransitTime*res) - 1
+        for (j in 1:endt) {
             y <- append(y, inTransitValue)
         }
-        constt <- as.integer(constTime*res)
+        y <- append(y, seq(from = inTransitValue, to = 1, length.out = res+1))  # Increment from depth to 1.
+        constt <- as.integer(constTime*res) - 1
         for (j in 1:constt) {
             y <- append(y, 1)
         }
     }
-
-    tIncrement <- 1 / res
-    t <- seq(from=0, by = tIncrement, length.out = length(y))
+    y <- append(y, 1)
 
     if (noiseType == 1) {
         set.seed(1)

@@ -201,7 +201,7 @@ evd <- function(
     perMax <- t[length(t)] - t[1]
     freqMin <- 1 / perMax
     freqMax <- 1 / perMin
-    nfreq <- length(t) * 10  # This particular value is taken from BLS - see bls.R. Here, it is used for both BLS and TCF.
+    nfreq <- length(y) * 10  # This particular value is taken from BLS - see bls.R. Here, it is used for both BLS and TCF.
 
     if (useOptimalFreqSampling) {
         if (algo == "BLS") {
@@ -220,11 +220,11 @@ evd <- function(
         freqStep <- (freqMax - freqMin) / (nfreq * ofac)  # Oversampled by a factor, `ofac`.
     }
 
-    freqGrid <- seq(from = freqMin, to = freqMax, by = freqStep)  # Goes from ~0.001 to 0.5 (NOTE: Since delta_t = 1, fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014).
+    freqGrid <- seq(from = freqMin, to = freqMax, by = freqStep)  # Goes from ~0.001 to max freq set by the time spacing (NOTE: fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014), where delta_t here is res.
     print(sprintf("No. of frequencies in grid: %f", length(freqGrid)))
 
     stopifnot(exprs={
-        all(freqGrid <= 0.5)  # No frequency must be greater than the Nyquist frequency.
+        all(freqGrid <= res / 2)  # No frequency must be greater than the Nyquist frequency.
         length(freqGrid) >= K * L  # K*L is ideally going to be less than N, otherwise the bootstrap has no benefit in terms of compuation time.
     })
 

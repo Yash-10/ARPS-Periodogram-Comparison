@@ -100,10 +100,11 @@ standardPeriodogram <- function(
     nper=length(t)*10,
     ntransits=10,
     ofac=1,
+    res=1.,  # Light curve resolution, see getLightCurve().
     showFAP = FALSE  # Whether to show the calculated false alarm probability in the plot. If TRUE, it will take much more time since internally the evd() function is run.
 ){
     # Generate light curve using the parameters.
-    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits)
+    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res)
     y <- unlist(yt[1])
     t <- unlist(yt[2])
     noiseStd <- unlist(yt[3])
@@ -113,7 +114,7 @@ standardPeriodogram <- function(
     perMax <- t[length(t)] - t[1]
     freqMin <- 1 / perMax
     freqMax <- 1 / perMin
-    nfreq <- length(t) * 10  # This particular value is taken from BLS - see bls.R. Here, it is used for both BLS and TCF.
+    nfreq <- length(y) * 10  # This particular value is taken from BLS - see bls.R. Here, it is used for both BLS and TCF.
 
     # Run periodogram algorithm.
     freqStep <- (freqMax - freqMin) / (nfreq * ofac)
