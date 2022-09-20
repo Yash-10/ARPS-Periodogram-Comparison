@@ -114,7 +114,7 @@ standardPeriodogram <- function(
     perMax <- t[length(t)] - t[1]
     freqMin <- 1 / perMax
     freqMax <- 1 / perMin
-    nfreq <- length(y) * 10  # This particular value is taken from BLS - see bls.R. Here, it is used for both BLS and TCF.
+    nfreq <- length(t) * 10  # This particular value is taken from BLS - see bls.R. Here, it is used for both BLS and TCF.
 
     # Run periodogram algorithm.
     freqStep <- (freqMax - freqMin) / (nfreq * ofac)
@@ -122,10 +122,10 @@ standardPeriodogram <- function(
     print(sprintf("No. of frequencies in grid: %f", length(freqGrid)))
 
     if (algo == "BLS") {
-        # Note that BLS requires fmin >= 1/length(t). So we end at the default perMax rather than going up to max(1/freqGrid) to prevent errors.
-        output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=perMax, nper=length(freqGrid))
+        output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
     }
     else {
+        # Note: The only difference between the frequencies used in BLS and TCF is the last frequency. For TCF we each upto (and including) 1 / (2 * res) whereas BLS reaches frequency upto (but not including) 1 / (2 * res).
         periodsToTry <- 1 / freqGrid
         residTCF <- getResidForTCF(y)
         output <- tcf(residTCF, p.try = periodsToTry, print.output = FALSE)

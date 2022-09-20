@@ -113,7 +113,7 @@ evd <- function(
     depth,
     duration,
     L=500,  # No. of distinct frequency bins.
-    R=1000,  # No. of bootstrap resamples of the original time series.
+    R=200,  # No. of bootstrap resamples of the original time series.
     noiseType=1,  # Noise model present in y. Either 1 (white gaussian noise) or 2 (autoregressive noise).
     # Note: noiseType is passed as argument to the `getLightCurve` function.
     useStandardization=FALSE,  # If true, uses standardized periodograms for GEV fitting and extrapolation.
@@ -201,7 +201,7 @@ evd <- function(
     perMax <- t[length(t)] - t[1]
     freqMin <- 1 / perMax
     freqMax <- 1 / perMin
-    nfreq <- length(y) * 10  # This particular value is taken from BLS - see bls.R. Here, it is used for both BLS and TCF.
+    nfreq <- length(t) * 10  # This particular value is taken from BLS - see bls.R. Here, it is used for both BLS and TCF.
 
     if (useOptimalFreqSampling) {
         if (algo == "BLS") {
@@ -248,20 +248,14 @@ evd <- function(
             else {
                 partialPeriodogram <- out$spec
             }
-
-            # trend<-cobs(partialPeriodogram$periodsTested, partialPeriodogram$spec, ic='BIC', tau=0.5, lambda=1.)$fitted
-            # plot(partialPeriodogram$periodsTested, partialPeriodogram$spec, type='l')
-            # lines(partialPeriodogram$periodsTested, trend, type='l', col='red')
-            # print(length(partialPeriodogram$periodsTested))
-            # return (1);
-            # partialPeriodogram <- standardizeAPeriodogram(partialPeriodogram)
-            # plot(partialPeriodogram$periodsTested, normalizedP, type='l')
-            # return (1);
         }
         else if (algo == "TCF") {
-            # TODO: Speed bottlenck: calculating residuals is currently the bottleneck which takes enormous times for extreme value analysis on TCF to complete. Can we speedup it up somehow? 
-            residTCF <- getResidForTCF(bootTS[j,])
-            out <- tcf(residTCF, p.try = 1 / KLfreqs, print.output = FALSE)
+            # Note: We do not need auto.arima here since the bootstrapped time series corresponds to white noise, and so ARIMA is of no use here.
+            # Note: The reason for defining freqsPartial like this is to ensure that TCF and BLS use same set of frequencies for calculating periodogram.
+            freqStepPartial <- (max(KLfreqs) - min(KLfreqs)) / (K * L)
+            # freqsPartial are the same frequencies as used in BLS (verified).
+            freqsPartial <- seq(from = min(KLfreqs), by = freqStepPartial, length.out = K*L)
+            out <- tcf(bootTS[j,], p.try = 1 / freqsPartial, print.output = FALSE)
             if (useStandardization) {
                 partialPeriodogram <- standardizeAPeriodogram(out, algo="TCF")
             }
@@ -332,11 +326,9 @@ evd <- function(
     print("Extrapolating to full periodogram...")
 
     # Compute full periodogram.
-    # TODO: Since standardized periodogram's scale has changed (due to scatter-removal), it lies at the end of gev cdf, thus always giving fap=0.000 -- fix this: either remove the scatter or do some hackery to prevent this from happening.
     if (algo == "BLS") {
-        ## On original periodogram
-        # Note: BLS requires fmin >= 1/T (where T is time duration of time series), hence we set a limit to per.max rather than going up to max(1/freqGrid), to prevent errors.
-        output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=perMax, nper=length(freqGrid))
+        # Note that BLS requires fmin >= 1/length(t). So we end at the default perMax rather than going up to max(1/freqGrid) to prevent errors.
+        output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
         if (useStandardization) {
             output <- standardizeAPeriodogram(output, algo="BLS")
         }
@@ -344,15 +336,15 @@ evd <- function(
             output <- output$spec
         }
     }
-    else {
-        periodsToTry = 1 / freqGrid
+    else if (algo == "TCF") {
+        periodsToTry <- 1 / freqGrid
         residTCF <- getResidForTCF(y)
         output <- tcf(residTCF, p.try = periodsToTry, print.output = FALSE)
         if (useStandardization) {
             output <- standardizeAPeriodogram(output, algo="TCF")
         }
         else {
-            output <- output$outpow
+            output <- output$spec
         }
     }
 
