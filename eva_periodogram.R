@@ -113,7 +113,7 @@ evd <- function(
     depth,
     duration,
     L=500,  # No. of distinct frequency bins.
-    R=200,  # No. of bootstrap resamples of the original time series.
+    R=500,  # No. of bootstrap resamples of the original time series.
     noiseType=1,  # Noise model present in y. Either 1 (white gaussian noise) or 2 (autoregressive noise).
     # Note: noiseType is passed as argument to the `getLightCurve` function.
     useStandardization=FALSE,  # If true, uses standardized periodograms for GEV fitting and extrapolation.

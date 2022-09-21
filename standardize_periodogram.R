@@ -106,7 +106,7 @@ standardPeriodogram <- function(
     ar=0.2,
     ma=0.2,
     order=c(1, 0, 1),
-    L=500, R=1000
+    L=500, R=500
 ){
     # Generate light curve using the parameters.
     yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
