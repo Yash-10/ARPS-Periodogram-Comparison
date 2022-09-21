@@ -80,9 +80,6 @@ getLightCurve <- function(
         noiseIQR <- 0
     }
 
-    print(length(t))
-    print(length(y))
-
     stopifnot(exprs={
         length(y) == length(t)
     })
