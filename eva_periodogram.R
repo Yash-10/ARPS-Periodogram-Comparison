@@ -129,7 +129,7 @@ evd <- function(
     ar=0.2,
     ma=0.2,
     order=c(1, 0, 1),
-    res=1.  # Resolution for creating the time series. Refer getLightCurve from test_periodogram.R
+    res=2  # Resolution for creating the time series. Refer getLightCurve from test_periodogram.R
 ) {
 
     # L, R, noiseType, ntransits must be integers.

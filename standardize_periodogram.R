@@ -100,11 +100,16 @@ standardPeriodogram <- function(
     nper=length(t)*10,
     ntransits=10,
     ofac=1,
-    res=1.,  # Light curve resolution, see getLightCurve().
-    showFAP = FALSE  # Whether to show the calculated false alarm probability in the plot. If TRUE, it will take much more time since internally the evd() function is run.
+    res=2,  # Light curve resolution, see getLightCurve().
+    showFAP = FALSE,  # Whether to show the calculated false alarm probability in the plot. If TRUE, it will take much more time since internally the evd() function is run.
+    gaussStd=1e-4,
+    ar=0.2,
+    ma=0.2,
+    order=c(1, 0, 1),
+    L=500, R=1000
 ){
     # Generate light curve using the parameters.
-    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res)
+    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
     y <- unlist(yt[1])
     t <- unlist(yt[2])
     noiseStd <- unlist(yt[3])
@@ -175,7 +180,7 @@ standardPeriodogram <- function(
 
     if (showFAP) {
         # Call extreme value analysis code.
-        result <- evd(period, depth, duration, noiseType=noiseType, algo=algo, ofac=ofac, L=10, R=10)
+        result <- evd(period, depth, duration, noiseType=noiseType, algo=algo, ofac=ofac, L=L, R=R, res=res, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
         print(sprintf("FAP = %.10f", result[1]))
         fap <- result[1]
     }

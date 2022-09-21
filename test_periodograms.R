@@ -4,7 +4,7 @@ getLightCurve <- function(
     period,  # What period (in days) do you want to have in your light curve, will be a single value. eg: 1/3/5/7/9.
     depth,  # What depth (in % of the star's presumed constant level which is 1) do you want to have in your light curve, will be a single value. eg: 0.01/0.05/0.1/0.15/0.2.
     duration,  # What transit duration (as a fraction of the period) do you want to have in your light curve. eg: 1/24.
-    res=1,  # Resolution to create the light curve. If res = 1, then the light curve cannot handle things that happen on scales less than an hour. Hence, a 1hr transit duration and 0.75hr transit duration would be treated same. If you want to avoid this, set a higher resolution using this parameter.
+    res=2,  # Resolution to create the light curve. If res = 1, then the light curve cannot handle things that happen on scales less than an hour. Hence, a 1hr transit duration and 0.75hr transit duration would be treated same. If you want to avoid this, set a higher resolution using this parameter.
     # Note: The definition of transit duration used in the code is how many points there are at the in-transit level whereas in astronomy it is, how many points are there before you reach the constant value again taking into account points in going from 1 --> inTransitValue.
     noiseType=0,  # 1 --> Gaussian noise, 2 --> Autoregressive noise. If autoregressive noise, (1, 0, 1) model is used. To change it, need to change the source code.
     ntransits=10,  # No. of transits in the whole time series. Note: It must be >=3, otherwise BLS/TCF matching filter periodograms might not work.
@@ -46,13 +46,13 @@ getLightCurve <- function(
     y <- rep(1.0, each = as.integer(constTime*res)) # Start with some constant level.
 
     for (n in 1:ntransits) {
-        y <- append(y, seq(from = 1, to = inTransitValue, length.out = res+1))  # Decrement from 1 to depth.
+        y <- append(y, seq(from = 1, to = inTransitValue, length.out = res))  # Decrement from 1 to depth.
         endt <- as.integer(inTransitTime*res) - 1
         for (j in 1:endt) {
             y <- append(y, inTransitValue)
         }
-        y <- append(y, seq(from = inTransitValue, to = 1, length.out = res+1))  # Increment from depth to 1.
-        constt <- as.integer(constTime*res) - 1
+        y <- append(y, seq(from = inTransitValue, to = 1, length.out = res))  # Increment from depth to 1.
+        constt <- as.integer(constTime*res) + 1
         for (j in 1:constt) {
             y <- append(y, 1)
         }
@@ -79,6 +79,9 @@ getLightCurve <- function(
         noiseStd <- 0
         noiseIQR <- 0
     }
+
+    print(length(t))
+    print(length(y))
 
     stopifnot(exprs={
         length(y) == length(t)
