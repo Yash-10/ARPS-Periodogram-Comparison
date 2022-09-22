@@ -130,10 +130,10 @@ standardPeriodogram <- function(
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
     }
     else {
-        # Note: The only difference between the frequencies used in BLS and TCF is the last frequency. For TCF we each upto (and including) 1 / (2 * res) whereas BLS reaches frequency upto (but not including) 1 / (2 * res).
-        periodsToTry <- 1 / freqGrid
+        fstep <- (max(freqGrid) - min(freqGrid)) / length(freqGrid)
+        freqs <- seq(from = min(freqGrid), by = fstep, length.out = length(freqGrid))
         residTCF <- getResidForTCF(y)
-        output <- tcf(residTCF, p.try = periodsToTry, print.output = FALSE)
+        output <- tcf(residTCF, p.try = 1/freqs, print.output = FALSE)
     }
 
     # (1) Remove trend in periodogram
@@ -256,7 +256,7 @@ standardPeriodogram <- function(
     }
 }
 
-standardizeAPeriodogram <- function(output, algo="BLS") {
+standardizeAPeriodogram <- function(output, periodsToTry, algo="BLS") {
     lambdaTrend <- 1
     lambdaScatter <- 1
 

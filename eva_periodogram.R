@@ -221,6 +221,7 @@ evd <- function(
     }
 
     freqGrid <- seq(from = freqMin, to = freqMax, by = freqStep)  # Goes from ~0.001 to max freq set by the time spacing (NOTE: fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014), where delta_t here is res.
+    freqGrid <- freqGrid[-length(freqGrid)]  # Remove the last frequency. This is done to prevent periodogram returning nan power at frequency = Nyquist frequency.
     print(sprintf("No. of frequencies in grid: %f", length(freqGrid)))
 
     stopifnot(exprs={
@@ -326,8 +327,8 @@ evd <- function(
     print("Extrapolating to full periodogram...")
 
     # Compute full periodogram.
+    # TODO: Ensure periodsToTry and output$periodsTested are the same....
     if (algo == "BLS") {
-        # Note that BLS requires fmin >= 1/length(t). So we end at the default perMax rather than going up to max(1/freqGrid) to prevent errors.
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
         if (useStandardization) {
             output <- standardizeAPeriodogram(output, algo="BLS")
@@ -337,9 +338,10 @@ evd <- function(
         }
     }
     else if (algo == "TCF") {
-        periodsToTry <- 1 / freqGrid
+        fstep <- (max(freqGrid) - min(freqGrid)) / length(freqGrid)
+        freqs <- seq(from = min(freqGrid), by = fstep, length.out = length(freqGrid))
         residTCF <- getResidForTCF(y)
-        output <- tcf(residTCF, p.try = periodsToTry, print.output = FALSE)
+        output <- tcf(residTCF, p.try = 1/freqs, print.output = FALSE)
         if (useStandardization) {
             output <- standardizeAPeriodogram(output, algo="TCF")
         }
