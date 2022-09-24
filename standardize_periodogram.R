@@ -115,25 +115,29 @@ standardPeriodogram <- function(
     noiseStd <- unlist(yt[3])
     noiseIQR <- unlist(yt[4])
 
-    perMin <- t[3] - t[1]
+    # Observation: TCF peak changes as perMin changes....why??
+    # TODO: Something must be done in the below lines only to fix tcf causing peaks at diff locations for res >=2.
+    # I think the reason for that could be that bls also takes `t`, so it knows the time-spacing internally whereas TCF does not take t, so it may be assuming each subsequent time unit to be 1 hr.
+    # one soln i think is to not use the below period/freq spacings, and instead use ones from astropy BLS, etc.
+    perMin <- (t[3] - t[1]) * res
     perMax <- t[length(t)] - t[1]
     freqMin <- 1 / perMax
     freqMax <- 1 / perMin
     nfreq <- length(t) * 10  # This particular value is taken from BLS - see bls.R. Here, it is used for both BLS and TCF.
 
-    # Run periodogram algorithm.
-    freqStep <- (freqMax - freqMin) / (nfreq * ofac)
-    freqGrid <- seq(from = freqMin, to = freqMax, by = freqStep)  # Goes from ~0.001 to 0.5 (NOTE: Since delta_t = 1, fmax must be <= Nyquist frequency = 1/(2*delta_t) = 0.5 -- from Suveges, 2014).
+    freqGrid <- seq(from = freqMin, to = freqMax, by = freqStep)  # Goes from ~0.001 to max freq set by the time spacing (NOTE: fmax must be <= Nyquist frequency = 1/(2*delta_t) -- from Suveges, 2014), where delta_t here is res.
+    freqGrid <- freqGrid[-length(freqGrid)]  # Remove the last frequency. This is done to prevent periodogram returning nan power at frequency = Nyquist frequency.
     print(sprintf("No. of frequencies in grid: %f", length(freqGrid)))
 
     if (algo == "BLS") {
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
     }
-    else {
+    else if (algo == "TCF") {
         fstep <- (max(freqGrid) - min(freqGrid)) / length(freqGrid)
         freqs <- seq(from = min(freqGrid), by = fstep, length.out = length(freqGrid))
+        periodsToTry <- 1 / freqs
         residTCF <- getResidForTCF(y)
-        output <- tcf(residTCF, p.try = 1/freqs, print.output = FALSE)
+        output <- tcf(residTCF, p.try = periodsToTry, print.output = TRUE)
     }
 
     # (1) Remove trend in periodogram
@@ -141,13 +145,13 @@ standardPeriodogram <- function(
     if (algo == "BLS") {
         lambdaTrend <- 1
         cobsxy50 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")  # If tau = 0.5 and lambda = 0 => Median regression fit.
-        cobsxy501 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.9, lambda=lambdaTrend, constraint="increase")
+        cobsxy501 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.9, lambda=lambdaTrend)
         cobsxy502 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.99, lambda=lambdaTrend)
     }
     else if (algo == "TCF") {
         lambdaTrend <- 1
         cobsxy50 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")
-        cobsxy501 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.9, lambda=lambdaTrend, constraint="increase")
+        cobsxy501 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.9, lambda=lambdaTrend)
         cobsxy502 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.99, lambda=lambdaTrend)
     }
 
@@ -200,12 +204,19 @@ standardPeriodogram <- function(
             widths = c(1)
         )     # Widths of the two columns
 
+        if (algo == "BLS") {
+            pergram <- output$spec
+        }
+        else if (algo == "TCF") {
+            pergram <- output$outpow
+        }
+
         plot(t, y, type='l', main=sprintf("period: %.3f days, depth: %.5f (pct), duration: %.3f (hrs)\n(%s) noise std dev: %f, noise IQR: %f", period, depth, period * 24 * duration, if (noiseType == 1) "gaussian" else "autoregressive", noiseStd, noiseIQR), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)')
         acfEstimate <- acf(y, plot = FALSE)
         lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
         plot(acfEstimate, main=sprintf("P(Ljung-Box) = %s, lag-1 acf = %s", lJStats[3], acfEstimate$acf[[2]]), cex=2)
 
-        plot(cobsxy50$x, if (algo == "BLS") output$spec else output$outpow, type = 'l', main=sprintf("Original %s periodogram and cobs fit\nlambdaTrend=%d, ofac=%d", algo, lambdaTrend, ofac), log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+        plot(cobsxy50$x, pergram, type = 'l', main=sprintf("Original %s periodogram and cobs fit\nlambdaTrend=%d, ofac=%d", algo, lambdaTrend, ofac), log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
         lines(cobsxy50$x, cobsxy50$fitted, type = 'l', col='red')
         lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
         lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
@@ -218,13 +229,6 @@ standardPeriodogram <- function(
         plot(cobsxy50$x, normalizedPeriodogram, type = 'l', main=sprintf('Standardized %s periodogram\n(detrended and local scatter removed)', algo), log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
         plot.new()  # Just show an empty plot.
-
-        if (algo == "BLS") {
-            pergram <- output$spec
-        }
-        else {
-            pergram <- output$outpow
-        }
 
         # Plot histogram of periodogram. Shows log-frequency on y-axis in histogram for better visualization.
         hist.data = hist(pergram, breaks=50, plot = FALSE)
