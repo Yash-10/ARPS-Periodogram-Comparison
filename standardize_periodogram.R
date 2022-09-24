@@ -119,6 +119,7 @@ standardPeriodogram <- function(
     # TODO: Something must be done in the below lines only to fix tcf causing peaks at diff locations for res >=2.
     # I think the reason for that could be that bls also takes `t`, so it knows the time-spacing internally whereas TCF does not take t, so it may be assuming each subsequent time unit to be 1 hr.
     # one soln i think is to not use the below period/freq spacings, and instead use ones from astropy BLS, etc.
+    # TODO: This below thing to multiply by "res" is not working...need to fix.
     perMin <- (t[3] - t[1]) * res
     perMax <- t[length(t)] - t[1]
     freqMin <- 1 / perMax
