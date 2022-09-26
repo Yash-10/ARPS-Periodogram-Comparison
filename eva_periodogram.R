@@ -197,8 +197,7 @@ evd <- function(
     # Note that while using min frequency as zero is often not a problem (does not add suprious peaks - as described in 7.1 in https://iopscience.iop.org/article/10.3847/1538-4365/aab766/pdf), here we start with min_freq = 1 / (duration of time series).
     # One motivation for oversampling (from https://iopscience.iop.org/article/10.3847/1538-4365/aab766/pdf): "...it is important to choose grid spacings smaller than the expected widths of the periodogram peaks...To ensure that our grid sufficiently samples each peak, it is prudent to oversample by some factor—say, n0 samples per peak--and use a grid of size 1 / (n0 * T)"
     # The above paper also says that n0 = 5 to 10 is common.
-    # TODO: This below thing to multiply by "res" is not working...need to fix.
-    perMin <- (t[3] - t[1]) * res  # Note: we are multiplying the minimum period to test by res since t[3] - t[1] does not always correspond to 2 time units but depends on hours. So if we didn't multiply, the minimum period would get smaller and smaller for larger res values, which shouldn't happen since res has nothing to do with the planet's period, it's just the observation resolution.
+    perMin <- t[3] - t[1]
     perMax <- t[length(t)] - t[1]
     freqMin <- 1 / perMax
     freqMax <- 1 / perMin

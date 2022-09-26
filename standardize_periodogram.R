@@ -115,12 +115,9 @@ standardPeriodogram <- function(
     noiseStd <- unlist(yt[3])
     noiseIQR <- unlist(yt[4])
 
-    # Observation: TCF peak changes as perMin changes....why??
-    # TODO: Something must be done in the below lines only to fix tcf causing peaks at diff locations for res >=2.
-    # I think the reason for that could be that bls also takes `t`, so it knows the time-spacing internally whereas TCF does not take t, so it may be assuming each subsequent time unit to be 1 hr.
-    # one soln i think is to not use the below period/freq spacings, and instead use ones from astropy BLS, etc.
-    # TODO: This below thing to multiply by "res" is not working...need to fix.
-    perMin <- (t[3] - t[1]) * res
+    # Observation: TCF peak changes as res changes. In fact, the estimated period scales by `res`. This is expected as per our conversation. So we need to scale the estimated period with res.
+    # I think the reason for that could be that bls takes `t` (apart from `y`, the observation values), so it knows the time-spacing internally whereas TCF does not take t.
+    perMin <- t[3] - t[1]
     perMax <- t[length(t)] - t[1]
     freqMin <- 1 / perMax
     freqMax <- 1 / perMin
