@@ -13,4 +13,4 @@ Using extreme value analysis for comparing different periodogram algorithms such
 (TODO: add more details)
 
 ## License
-[MIT](https://choosealicense.com/licenses/mit/)
+[MIT](https://github.com/Yash-10/arps/blob/main/LICENSE)
