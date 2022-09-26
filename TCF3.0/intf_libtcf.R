@@ -3,7 +3,11 @@
 
 #### this file can be sourced via 'source(pfilt_interface.R)' in an R session
 
-dyn.load("TCF3.0/a.out")
+dyn.load("/home/oem/arps/TCF3.0/a.out")
+# dyn.load("/home/oem/arps/TCF3.0/rand_tools.so")
+# dyn.load("/home/oem/arps/TCF3.0/median.so")
+# dyn.load("/home/oem/arps/TCF3.0/tcf.so")
+# dyn.load("/home/oem/arps/TCF3.0/main_tcf.so")
 
 tcf <- function(y,     ## time series vector
 ##                per.range = c(2,length(y)/2),
