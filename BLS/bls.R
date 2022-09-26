@@ -1,6 +1,3 @@
-###################################################################################
-# Note:  Slightly modified by Yash Gondhalekar to also return the periods tested ##
-###################################################################################
 
 #### to compile shared library, run on terminal:
 ## ' R CMD SHLIB eebls.f '
@@ -50,10 +47,10 @@ bls <- function(data.vals,     ## vector with signal
     plot(per,fBLS$p,type="l",xlab = "Period",ylab = "Power")
   }
   bls.vals <- list(fBLS$p,fBLS$bper,fBLS$bpow,fBLS$depth,fBLS$qtran,fBLS$qtran*fBLS$bper,per)
-  names(bls.vals) <- c("spec","per","maxpow","depth","qtran","dur","periodsTested")
-  # print(noquote(paste("Peak Power =",sprintf("%.3f",fBLS$bpow))))
-  # print(noquote(paste("Period =",sprintf("%.3f",fBLS$bper))))
-  # print(noquote(paste("Depth =",sprintf("%.3f",fBLS$depth))))
-  # print(noquote(paste("Duration =",sprintf("%.3f",fBLS$qtran*fBLS$bper))))
+  names(bls.vals) <- c("spec","per","maxpow","depth","qtran","dur", "periodsTested")
+  print(noquote(paste("Peak Power =",sprintf("%.3f",fBLS$bpow))))
+  print(noquote(paste("Period =",sprintf("%.3f",fBLS$bper))))
+  print(noquote(paste("Depth =",sprintf("%.3f",fBLS$depth))))
+  print(noquote(paste("Duration =",sprintf("%.3f",fBLS$qtran*fBLS$bper))))
   return(bls.vals)
 }

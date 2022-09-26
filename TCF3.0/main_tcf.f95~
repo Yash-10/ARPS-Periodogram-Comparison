@@ -1,6 +1,6 @@
 
 subroutine main_tcf(ny,y,na,nper,inper,outpow,outdepth,outphase&
-     &,outdur)
+     &,outdur,outmad)
   use rand_tools
   use tcf_tools
   use m_median
@@ -10,7 +10,7 @@ subroutine main_tcf(ny,y,na,nper,inper,outpow,outdepth,outphase&
   integer, intent(in), dimension(ny) :: na
   double precision, intent(in), dimension(nper) :: inper
   double precision, intent(out), dimension(nper) :: outpow,outdepth&
-       &,outphase,outdur
+       &,outphase,outdur,outmad
   !!
   double precision, dimension(ny) :: cy
   double precision mad
@@ -25,8 +25,9 @@ subroutine main_tcf(ny,y,na,nper,inper,outpow,outdepth,outphase&
   mad = median(abs(pack(cy, MASK = na==0)))
   cy = cy/mad
 
-  call tcf(cy,na,inper,outpow,outdepth,outphase,outdur)
+  call tcf(cy,na,inper,outpow,outdepth,outphase,outdur,outmad)
   
   outdepth = outdepth*mad
+  outdepth = outmad*mad
 
 end subroutine main_tcf
