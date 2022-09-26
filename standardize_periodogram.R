@@ -249,7 +249,7 @@ standardPeriodogram <- function(
 
 standardizeAPeriodogram <- function(
     output,
-    periodsToTry,
+    periodsToTry=NULL,  # This argument is only needed when algo="TCF" and not needed for algo="BLS".
     algo="BLS",
     mode='detrend_normalize'  # Other option is 'detrend' in which case only detrending is performed, no normalization using scatter is performed.
 ) {
@@ -284,7 +284,7 @@ standardizeAPeriodogram <- function(
         normalizedPeriodogram <- periodogramTrendRemoved / cobsScatter$fitted
         return (normalizedPeriodogram);
     }
-    else if (mode == 'detrend') {
+    else {  # mode == 'detrend'
         return (periodogramTrendRemoved);
     }
 }

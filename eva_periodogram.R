@@ -78,7 +78,7 @@ evd <- function(
     ma=0.2,
     order=c(1, 0, 1),
     res=2,  # Resolution for creating the time series. Refer getLightCurve from test_periodogram.R
-    mode='detrend_normalize'  # Standardization mode: either detrend_normalize or detrend, see the function `standardizeAPeriodogram`.
+    mode='detrend_normalize'  # Standardization mode: either detrend_normalize or detrend, see the function `standardizeAPeriodogram`. Only used if useStandardization=TRUE.
 ) {
 
     # L, R, noiseType, ntransits must be integers.
@@ -171,7 +171,7 @@ evd <- function(
         if (algo == "BLS") {
             out <- bls(bootTS[j,], t, per.min=min(1/KLfreqs), per.max=max(1/KLfreqs), nper=K*L, bls.plot = FALSE)
             if (useStandardization) {
-                partialPeriodogram <- standardizeAPeriodogram(out, algo="BLS", mode=mode)
+                partialPeriodogram <- standardizeAPeriodogram(out, periodsToTry=NULL, algo="BLS", mode=mode)  # For BLS, the periods tested is gotten from the R object `out`, hence we do not need to pass periodsToTy.
             }
             else {
                 partialPeriodogram <- out$spec
@@ -183,9 +183,10 @@ evd <- function(
             freqStepPartial <- (max(KLfreqs) - min(KLfreqs)) / (K * L)
             # freqsPartial are the same frequencies as used in BLS (verified).
             freqsPartial <- seq(from = min(KLfreqs), by = freqStepPartial, length.out = K*L)
-            out <- tcf(bootTS[j,], p.try = 1 / freqsPartial, print.output = FALSE)
+            pToTry <- 1 / freqsPartial
+            out <- tcf(bootTS[j,], p.try = pToTry, print.output = FALSE)
             if (useStandardization) {
-                partialPeriodogram <- standardizeAPeriodogram(out, algo="TCF", mode=mode)
+                partialPeriodogram <- standardizeAPeriodogram(out, periodsToTry = pToTry, algo="TCF", mode=mode)
             }
             else {
                 partialPeriodogram <- out$outpow
@@ -257,7 +258,7 @@ evd <- function(
     if (algo == "BLS") {
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
         if (useStandardization) {
-            output <- standardizeAPeriodogram(output, algo="BLS", mode=mode)
+            output <- standardizeAPeriodogram(output, periodsToTry=NULL, algo="BLS", mode=mode)
         }
         else {
             output <- output$spec
@@ -270,7 +271,7 @@ evd <- function(
         residTCF <- getResidForTCF(y)
         output <- tcf(residTCF, p.try = periodsToTry, print.output = TRUE)
         if (useStandardization) {
-            output <- standardizeAPeriodogram(output, algo="TCF", mode=mode)
+            output <- standardizeAPeriodogram(output, periodsToTry=periodsToTry, algo="TCF", mode=mode)
         }
         else {
             output <- output$outpow
