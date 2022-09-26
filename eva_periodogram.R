@@ -78,7 +78,7 @@ evd <- function(
     ma=0.2,
     order=c(1, 0, 1),
     res=2,  # Resolution for creating the time series. Refer getLightCurve from test_periodogram.R
-    mode='detrend_normalize'  # Standardization mode: either detrend_normalize or detrend, see the function `standardizeAPeriodogram`. Only used if useStandardization=TRUE.
+    mode='detrend'  # Standardization mode: either detrend_normalize or detrend, see the function `standardizeAPeriodogram`. Only used if useStandardization=TRUE.
 ) {
 
     # L, R, noiseType, ntransits must be integers.

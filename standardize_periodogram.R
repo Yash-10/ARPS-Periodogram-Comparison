@@ -251,7 +251,7 @@ standardizeAPeriodogram <- function(
     output,
     periodsToTry=NULL,  # This argument is only needed when algo="TCF" and not needed for algo="BLS".
     algo="BLS",
-    mode='detrend_normalize'  # Other option is 'detrend' in which case only detrending is performed, no normalization using scatter is performed.
+    mode='detrend'  # Other option is 'detrend' in which case only detrending is performed, no normalization using scatter is performed.
 ) {
     lambdaTrend <- 1
     lambdaScatter <- 1
