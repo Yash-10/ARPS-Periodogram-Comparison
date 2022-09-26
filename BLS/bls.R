@@ -4,7 +4,7 @@
 
 #### this file can be sourced via 'source(bls.R)' in an R session
 
-dyn.load("./eebls.so")
+dyn.load("/content/arps/BLS/eebls.o")
 bls <- function(data.vals,     ## vector with signal
                 data.times,    ## vector with times
                 bls.plot = TRUE,   ## plot periodogram
