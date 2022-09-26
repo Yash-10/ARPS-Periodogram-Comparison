@@ -95,9 +95,6 @@ standardPeriodogram <- function(
     algo = "BLS",  # or "TCF"
     windowLength=100,
     plot = TRUE,
-    perMin=t[3]-t[1],
-    perMax=t[length(t)]-t[1],
-    nper=length(t)*10,
     ntransits=10,
     ofac=1,
     res=2,  # Light curve resolution, see getLightCurve().
@@ -106,7 +103,8 @@ standardPeriodogram <- function(
     ar=0.2,
     ma=0.2,
     order=c(1, 0, 1),
-    L=500, R=500
+    L=500, R=500,
+    useOptimalFreqSampling=FALSE
 ){
     # Generate light curve using the parameters.
     yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
@@ -115,17 +113,8 @@ standardPeriodogram <- function(
     noiseStd <- unlist(yt[3])
     noiseIQR <- unlist(yt[4])
 
-    # Observation: TCF peak changes as res changes. In fact, the estimated period scales by `res`. This is expected as per our conversation. So we need to scale the estimated period with res.
-    # I think the reason for that could be that bls takes `t` (apart from `y`, the observation values), so it knows the time-spacing internally whereas TCF does not take t.
-    perMin <- t[3] - t[1]
-    perMax <- t[length(t)] - t[1]
-    freqMin <- 1 / perMax
-    freqMax <- 1 / perMin
-    nfreq <- length(t) * 10  # This particular value is taken from BLS - see bls.R. Here, it is used for both BLS and TCF.
-
-    freqGrid <- seq(from = freqMin, to = freqMax, by = freqStep)  # Goes from ~0.001 to max freq set by the time spacing (NOTE: fmax must be <= Nyquist frequency = 1/(2*delta_t) -- from Suveges, 2014), where delta_t here is res.
-    freqGrid <- freqGrid[-length(freqGrid)]  # Remove the last frequency. This is done to prevent periodogram returning nan power at frequency = Nyquist frequency.
-    print(sprintf("No. of frequencies in grid: %f", length(freqGrid)))
+    # Create frequency grid.
+    freqGrid <- getFreqGridToTest(t, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo)
 
     if (algo == "BLS") {
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
