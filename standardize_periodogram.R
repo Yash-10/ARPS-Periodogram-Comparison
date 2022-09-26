@@ -247,7 +247,12 @@ standardPeriodogram <- function(
     }
 }
 
-standardizeAPeriodogram <- function(output, periodsToTry, algo="BLS") {
+standardizeAPeriodogram <- function(
+    output,
+    periodsToTry,
+    algo="BLS",
+    mode='detrend_normalize'  # Other option is 'detrend' in which case only detrending is performed, no normalization using scatter is performed.
+) {
     lambdaTrend <- 1
     lambdaScatter <- 1
 
@@ -263,18 +268,23 @@ standardizeAPeriodogram <- function(output, periodsToTry, algo="BLS") {
 
     periodogramTrendRemoved <- cobsxy50$resid
 
-    # (2) Remove local scatter in periodogram.
-    scatterWindowLength <- 100
-    Scatter <- computeScatter(periodogramTrendRemoved, windowLength=scatterWindowLength)
-    if (algo == "BLS") {
-        lambdaScatter <- 1
-        cobsScatter <- cobs(output$periodsTested, Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
-    }
-    else if (algo == "TCF") {
-        lambdaScatter <- 1
-        cobsScatter <- cobs(periodsToTry, Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
-    }
+    if (mode == 'detrend_normalize') {
+        # (2) Remove local scatter in periodogram.
+        scatterWindowLength <- 100
+        Scatter <- computeScatter(periodogramTrendRemoved, windowLength=scatterWindowLength)
+        if (algo == "BLS") {
+            lambdaScatter <- 1
+            cobsScatter <- cobs(output$periodsTested, Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
+        }
+        else if (algo == "TCF") {
+            lambdaScatter <- 1
+            cobsScatter <- cobs(periodsToTry, Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
+        }
 
-    normalizedPeriodogram <- periodogramTrendRemoved / cobsScatter$fitted
-    return (normalizedPeriodogram);
+        normalizedPeriodogram <- periodogramTrendRemoved / cobsScatter$fitted
+        return (normalizedPeriodogram);
+    }
+    else if (mode == 'detrend') {
+        return (periodogramTrendRemoved);
+    }
 }

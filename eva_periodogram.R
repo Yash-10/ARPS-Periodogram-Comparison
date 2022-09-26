@@ -77,7 +77,8 @@ evd <- function(
     ar=0.2,
     ma=0.2,
     order=c(1, 0, 1),
-    res=2  # Resolution for creating the time series. Refer getLightCurve from test_periodogram.R
+    res=2,  # Resolution for creating the time series. Refer getLightCurve from test_periodogram.R
+    mode='detrend_normalize'  # Standardization mode: either detrend_normalize or detrend, see the function `standardizeAPeriodogram`.
 ) {
 
     # L, R, noiseType, ntransits must be integers.
@@ -170,7 +171,7 @@ evd <- function(
         if (algo == "BLS") {
             out <- bls(bootTS[j,], t, per.min=min(1/KLfreqs), per.max=max(1/KLfreqs), nper=K*L, bls.plot = FALSE)
             if (useStandardization) {
-                partialPeriodogram <- standardizeAPeriodogram(out, algo="BLS")
+                partialPeriodogram <- standardizeAPeriodogram(out, algo="BLS", mode=mode)
             }
             else {
                 partialPeriodogram <- out$spec
@@ -184,7 +185,7 @@ evd <- function(
             freqsPartial <- seq(from = min(KLfreqs), by = freqStepPartial, length.out = K*L)
             out <- tcf(bootTS[j,], p.try = 1 / freqsPartial, print.output = FALSE)
             if (useStandardization) {
-                partialPeriodogram <- standardizeAPeriodogram(out, algo="TCF")
+                partialPeriodogram <- standardizeAPeriodogram(out, algo="TCF", mode=mode)
             }
             else {
                 partialPeriodogram <- out$outpow
@@ -256,7 +257,7 @@ evd <- function(
     if (algo == "BLS") {
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
         if (useStandardization) {
-            output <- standardizeAPeriodogram(output, algo="BLS")
+            output <- standardizeAPeriodogram(output, algo="BLS", mode=mode)
         }
         else {
             output <- output$spec
@@ -269,7 +270,7 @@ evd <- function(
         residTCF <- getResidForTCF(y)
         output <- tcf(residTCF, p.try = periodsToTry, print.output = TRUE)
         if (useStandardization) {
-            output <- standardizeAPeriodogram(output, algo="TCF")
+            output <- standardizeAPeriodogram(output, algo="TCF", mode=mode)
         }
         else {
             output <- output$outpow
