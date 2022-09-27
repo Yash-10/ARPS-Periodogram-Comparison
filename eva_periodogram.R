@@ -380,12 +380,12 @@ findbestLandR <- function(  # Finds the optimal L and R values via grid search. 
 }
 
 smallestPlanetDetectableTest <- function(  # This function returns the smallest planet detectable (in terms of transit depth) using the FAP criterion.
-    period,  # in days
-    depths,  # in %
-    duration,  # in hours
-    algo="BLS",  # either BLS or TCF
-    noiseType=1,  # 1 for Gaussian and 2 for autoregressive noise
-    ofac=2
+    period,  # a single period, in days.
+    depths,  # vector of depths for which FAP needs to be calculated, each in %. An example: c(0.1, 0.08, 0.06, 0.04, 0.02, 0.015, 0.012, 0.01, 0.005)
+    duration,  # a singel duration, in hours.
+    algo="BLS",  # either BLS or TCF.
+    noiseType=1,  # 1 for Gaussian and 2 for autoregressive noise.
+    ofac=2  # Oversampling factor.
 ) {
     faps <- c()
     for (depth in depths) {
@@ -428,10 +428,9 @@ findLimitingDepth <- function(period, duration, ofac=1, algo="BLS", ntransits=10
 # This function is only for a quick verification test. One would not expect to get the exact depth where the planet starts to become insignificant.
 periodDurationDepthTest <- function(
     algo="BLS",
+    depths=c(0.1, 0.08, 0.06, 0.04, 0.02, 0.015, 0.012, 0.01, 0.005)  # in %
     ofac=1
 ) {
-    depths <- c(0.1, 0.08, 0.06, 0.04, 0.02, 0.015, 0.012, 0.01, 0.005)  # in %
-
     periodDurations <- list()
     periodDurations[[1]] <- c(2, 1/24)  # 2 days, 2 hrs
     periodDurations[[2]] <- c(3, 1/36)  # 3 days, 2 hrs
