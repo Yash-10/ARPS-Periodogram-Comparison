@@ -1,6 +1,6 @@
 # ARPS - Comparison of periodogram algorithms
 
-Using extreme value analysis for comparing different periodogram algorithms such as BLS and TCF.
+Using extreme value theory for comparing different periodogram algorithms such as BLS and TCF.
 
 ## Installation
 
