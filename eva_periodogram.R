@@ -323,32 +323,32 @@ validate1_evd <- function(  # Checks whether the values in the bootstrapped resa
 #     plot(periods, ldepths, type='l')
 # }
 
-plotSensitivtyDurations <- function(
-    durations,
-    algo="BLS"
-) {
-    ldepths <- c()
-    for (duration in durations) {
-        d <- findLimitingDepth(period=3, duration=duration, algo=algo, ofac=1, ntransits=10, noiseType=1, gaussStd=1e-4)
-        ldepths <- append(ldepths, d)
-    }
-    # plot(durations, ldepths, type='l')
-    return (ldepths);
-}
+# plotSensitivtyDurations <- function(
+#     durations,
+#     algo="BLS"
+# ) {
+#     ldepths <- c()
+#     for (duration in durations) {
+#         d <- findLimitingDepth(period=3, duration=duration, algo=algo, ofac=1, ntransits=10, noiseType=1, gaussStd=1e-4)
+#         ldepths <- append(ldepths, d)
+#     }
+#     # plot(durations, ldepths, type='l')
+#     return (ldepths);
+# }
 
-plotSensitivtyARnoiseLevel <- function(
-    ARMA_coeffs,  # list of {ar, ma} coefficients.
-    algo="BLS"
-) {
-    ldepths <- c()
-    for (ARMA_coeff in ARMA_coeffs) {
-        ar <- ARMA_coeff[1]
-        ma <- ARMA_coeff[2]
-        d <- findLimitingDepth(period=3, duration=1/36, algo=algo, ofac=1, ntransits=10, noiseType=2, ar=ar, ma=ma, order=c(1, 0, 1))  # TODO: Also allow order as argument to function instead of harcoding.
-        ldepths <- append(ldepths, d)
-    }
-    return (ldepths);
-}
+# plotSensitivtyARnoiseLevel <- function(
+#     ARMA_coeffs,  # list of {ar, ma} coefficients.
+#     algo="BLS"
+# ) {
+#     ldepths <- c()
+#     for (ARMA_coeff in ARMA_coeffs) {
+#         ar <- ARMA_coeff[1]
+#         ma <- ARMA_coeff[2]
+#         d <- findLimitingDepth(period=3, duration=1/36, algo=algo, ofac=1, ntransits=10, noiseType=2, ar=ar, ma=ma, order=c(1, 0, 1))  # TODO: Also allow order as argument to function instead of harcoding.
+#         ldepths <- append(ldepths, d)
+#     }
+#     return (ldepths);
+# }
 
 findbestLandR <- function(  # Finds the optimal L and R values via grid search. It uses the AIC for finding the best {L, R} pair.
     Ls,
@@ -356,10 +356,7 @@ findbestLandR <- function(  # Finds the optimal L and R values via grid search. 
     period,
     depth,
     duration,
-    noiseType=1,
-    algo="BLS",
-    ofac=1,
-    useOptimalFreqSampling = FALSE
+    ...
 ) {
     # *** CAUTION: Do not use this code with large Ls and Rs lengths. It is only meant to compare a few L and R pairs and not for large scale tuning ***
 
@@ -369,7 +366,7 @@ findbestLandR <- function(  # Finds the optimal L and R values via grid search. 
     minAIC <- Inf
     bestLR <- NULL
     for (i in 1:length(Ls)) {
-        result <- evd(period, depth, duration, Ls[i], Rs[i], noiseType=noiseType, algo=algo, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling)
+        result <- evd(period, depth, duration, Ls[i], Rs[i], ...)
         aic <- result[2]
         if (aic < minAIC) {
             minAIC = aic
@@ -383,20 +380,18 @@ smallestPlanetDetectableTest <- function(  # This function returns the smallest 
     period,  # a single period, in days.
     depths,  # vector of depths for which FAP needs to be calculated, each in %. An example: c(0.1, 0.08, 0.06, 0.04, 0.02, 0.015, 0.012, 0.01, 0.005)
     duration,  # a singel duration, in hours.
-    algo="BLS",  # either BLS or TCF.
-    noiseType=1,  # 1 for Gaussian and 2 for autoregressive noise.
-    ofac=2  # Oversampling factor.
+    ...  # Arguments passed to evd() internally.
 ) {
     faps <- c()
     for (depth in depths) {
-        result <- evd(period, depth, duration, algo=algo, plot=FALSE, ofac=ofac)
+        result <- evd(period, depth, duration, ...)
         fap <- result[1]
         print(sprintf("depth (ppm): %f, fap: %f", depth*1e4, fap))
         faps <- append(faps, fap)
     }
 
     png(filename=sprintf("%sdays_%shours.png", period, duration * period * 24))
-    plot(depths*1e4, faps, xlab='Depth (ppm)', ylab='FAP', type='o', ylim=c(1e-7, 0.1))
+    plot(depths*1e4, faps, xlab='Depth (ppm)', ylab='FAP', type='o', ylim=c(1e-7, 0.02), log='y')  # Upper limit is set to 0.02 which is slightly larger than 0.01, the threshold FAP.
     axis(1, at=1:length(depths), labels=depths*1e4)
     if (noiseType == 1) {
         abline(h=0.01, col='black', lty=2)  # Here 1% FAP is used. Another choice is to use FAP=0.003, which corresponds to 3-sigma criterion for Gaussian -- commonly used in astronomy.
@@ -410,16 +405,16 @@ smallestPlanetDetectableTest <- function(  # This function returns the smallest 
 # This function finds the root of the equation: FAP(depth, **params) - 0.01 = 0, i.e., given the period and duration of a planet,
 # it finds the depth corresponding to the case FAP = 0.01 called the limiting_depth. So any transit with depth < limiting_depth
 # is statistically insignificant using the FAP = 0.01 criterion.
-depthEquation <- function(depth, period=3, algo="BLS", duration=1/36, ofac=1, ntransits=10, noiseType=1, gaussStd=1e-4, ar=0.2, ma=0.2, order=c(1, 0, 1)) {
-    result <- evd(period, depth, duration, ofac=ofac, algo=algo, ntransits=ntransits, noiseType=noiseType, plot = FALSE, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
+depthEquation <- function(depth, period, ...) {
+    result <- evd(period, depth, duration, ...)
     return (result[1] - 0.01);
 }
 
 # This function is a high-level wrapper for `findLimitingDepth` that prints the limiting depth.
 # Root solving is done using the Newton-Raphson iteration method via the `uniroot` function in R.
-findLimitingDepth <- function(period, duration, ofac=1, algo="BLS", ntransits=10, noiseType=1, gaussStd=1e-4, ar=0.2, ma=0.2, order=c(1, 0, 1)) {
+findLimitingDepth <- function(period, duration, ...) {
     print('Finding limiting depth corresponding to FAP = 0.01, the fixed threshold FAP...')
-    de <- function(depth) { return (depthEquation(depth, period=period, duration=duration, ofac=ofac, algo=algo, ntransits=ntransits, noiseType=noiseType, gaussStd, ar=ar, ma=ma, order=order)); }
+    de <- function(depth) { return (depthEquation(depth, period=period, duration=duration, ...)); }
     # TODO: In future, we can set the upper limit of interval depth (currently, 0.3) intelligently based on the IQR of noise, for example.
     # Note that extendInt = "yes" is passed so that limiting depths for already significant planets (that extend beyond the passed interval) can also be availed using this function. So extendInt is added only for allowing applications to various types of planets.
     return (uniroot(de, interval=c(0.004, 0.3), extendInt = "yes", tol=1e-4)$root);  # Lower limit set using the lower limit of depths typically observed in Kepler (40 ppm). Upper limit is not set the same as the upper limit of typical Kepler planets since we are interested in smaller planets only (FAP for large planets is anyways going to approach zero).
