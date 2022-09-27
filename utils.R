@@ -63,9 +63,47 @@ getFreqGridToTest <- function(
     return (freqGrid);
 }
 
-# TODO: The below freq grid division does not ensure non-overlap, which is needed as per suveges....
+divide <- function(vec, n, min_spacing = 1) {  # Below approach to ensure the selected L frequencies are spaced by atleast the oversampling factor is taken from https://stackoverflow.com/a/66036847:
+    u <- unname(tapply(vec, ceiling(seq_along(vec) / min_spacing), sample, size = 1))
+    head(u[seq(1, length(u), by = 2)], n)
+}
 
 freqdivideFreqGrid <- function(freqGrid, L, K) {
+    # set.seed(1)  # Set seed for reproducibility.
+
+    # TODO: Need to verify this works as expected for large oversampling factors. I think that the hackery below might still yield errors for larger ofac values than 2.
+    if ((K %% 2) == 0) {
+        safeDist <- 1 + K/2  # 1 is added just to be more safe at the edges of the frequency grid. This is just a hackery.
+    }
+    else {
+        safeDist <- 1 + (K-1)/2  # 1 is added just to be more safe at the edges of the frequency grid. This is just a hackery.
+    }
+    endIndex <- length(freqGrid) - safeDist
+    freqConsider <- freqGrid[safeDist:endIndex]
+    # LcentralFreqs <- divide(freqConsider, n=L, min_spacing=K+1)
+    LcentralFreqs <- sample(freqConsider, L, replace=FALSE, prob=rep(1/length(freqConsider), length(freqConsider)))  # replace=FALSE to prevent sampling the same frequency again. According to Suveges, each of the L central freqeuencies is selected with equal probability, so we pass an equal probability vector.
+    KLfreqs <- c()
+    for (i in 1:length(LcentralFreqs)) {
+        index <- match(LcentralFreqs[i], freqGrid)
+        if ((K %% 2) == 0) {
+            k_ <- as.integer(K/2)
+            lowerIndx <- index-k_
+            upperIndx <- index+(K-k_-1)
+            KLfreqs <- append(KLfreqs, freqGrid[lowerIndx:upperIndx])
+        }
+        else {
+            kminusonehalf <- as.integer((K-1) / 2)
+            lowerIndx <- index-kminusonehalf
+            upperIndx <- index+kminusonehalf
+            KLfreqs <- append(KLfreqs, freqGrid[lowerIndx:upperIndx])
+        }
+    }
+    return (KLfreqs);
+}
+
+
+### Store ###
+    # This is the earlier code (that did not work well), to divide the frequency grid into K*L frequencies.
     # # Divide the frequency into L bins, each with K datapoints.
     # ## From https://stackoverflow.com/questions/57889573/how-to-randomly-divide-interval-into-non-overlapping-spaced-bins-of-equal-lengt
     # intervalLength <- length(freqGrid)
@@ -87,32 +125,3 @@ freqdivideFreqGrid <- function(freqGrid, L, K) {
     #     KLfreqs <- append(KLfreqs, Kfreqs)
     # }
     # return (KLfreqs);
-
-    # TODO: Need to verify this works as expected for large oversampling factors. I think that the hackery below might still yield errors for larger ofac values than 2.
-    if ((K %% 2) == 0) {
-        safeDist <- 1 + K/2  # 1 is added just to be more safe at the edges of the frequency grid. This is just a hackery.
-    }
-    else {
-        safeDist <- 1 + (K-1)/2  # 1 is added just to be more safe at the edges of the frequency grid. This is just a hackery.
-    }
-    endIndex <- length(freqGrid) - safeDist
-    freqConsider <- freqGrid[safeDist:endIndex]
-    LcentralFreqs <- sample(freqConsider, L, replace=FALSE, prob=rep(1/length(freqConsider), length(freqConsider)))  # replace=FALSE to prevent sampling the same frequency again. According to Suveges, each of the L central freqeuencies is selected with equal probability, so we pass an equal probability vector.
-    KLfreqs <- c()
-    for (i in 1:length(LcentralFreqs)) {
-        index <- match(LcentralFreqs[i], freqGrid)
-        if ((K %% 2) == 0) {
-            k_ <- as.integer(K/2)
-            lowerIndx <- index-k_
-            upperIndx <- index+(K-k_-1)
-            KLfreqs <- append(KLfreqs, freqGrid[lowerIndx:upperIndx])
-        }
-        else {
-            kminusonehalf <- as.integer((K-1) / 2)
-            lowerIndx <- index-kminusonehalf
-            upperIndx <- index+kminusonehalf
-            KLfreqs <- append(KLfreqs, freqGrid[lowerIndx:upperIndx])
-        }
-    }
-    return (KLfreqs);
-}

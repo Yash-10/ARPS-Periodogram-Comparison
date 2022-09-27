@@ -22,6 +22,7 @@ library('cobs')
 source('BLS/bls.R')
 source('TCF3.0/intf_libtcf.R')
 source('test_periodograms.R')
+source('utils.R')
 library('goftest')  # install.packages("goftest")
 library('gbutils')  # https://search.r-project.org/CRAN/refmans/gbutils/html/cdf2quantile.html
 
@@ -429,7 +430,7 @@ periodDurationDepthTest <- function(
     algo="BLS",
     ofac=1
 ) {
-    depths <- c(0.1, 0.08, 0.06, 0.04, 0.02, 0.01, 0.005)  # in %
+    depths <- c(0.1, 0.08, 0.06, 0.04, 0.02, 0.015, 0.012, 0.01, 0.005)  # in %
 
     periodDurations <- list()
     periodDurations[[1]] <- c(2, 1/24)  # 2 days, 2 hrs
