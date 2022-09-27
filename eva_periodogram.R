@@ -393,12 +393,8 @@ smallestPlanetDetectableTest <- function(  # This function returns the smallest 
     png(filename=sprintf("%sdays_%shours.png", period, duration * period * 24))
     plot(depths*1e4, faps, xlab='Depth (ppm)', ylab='FAP', type='o', ylim=c(1e-7, 0.02), log='y')  # Upper limit is set to 0.02 which is slightly larger than 0.01, the threshold FAP.
     axis(1, at=1:length(depths), labels=depths*1e4)
-    if (noiseType == 1) {
-        abline(h=0.01, col='black', lty=2)  # Here 1% FAP is used. Another choice is to use FAP=0.003, which corresponds to 3-sigma criterion for Gaussian -- commonly used in astronomy.
-    }
-    else {
-        abline(h=0.002, col='black', lty=2)  # TODO: Decide what threshold FAP to use for the autoregressive case.
-    }
+    # TODO: Decide what threshold FAP to use for the autoregressive case.
+    abline(h=0.01, col='black', lty=2)  # Here 1% FAP is used. Another choice is to use FAP=0.003, which corresponds to 3-sigma criterion for Gaussian -- commonly used in astronomy.
     dev.off()
 }
 
