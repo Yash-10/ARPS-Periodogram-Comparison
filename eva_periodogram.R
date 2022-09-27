@@ -428,7 +428,7 @@ findLimitingDepth <- function(period, duration, ofac=1, algo="BLS", ntransits=10
 # This function is only for a quick verification test. One would not expect to get the exact depth where the planet starts to become insignificant.
 periodDurationDepthTest <- function(
     algo="BLS",
-    depths=c(0.1, 0.08, 0.06, 0.04, 0.02, 0.015, 0.012, 0.01, 0.005)  # in %
+    depths=c(0.1, 0.08, 0.06, 0.04, 0.02, 0.015, 0.012, 0.01, 0.005),  # in %
     ofac=1
 ) {
     periodDurations <- list()
