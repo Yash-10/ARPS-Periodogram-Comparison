@@ -15,6 +15,10 @@
 # Good set of papers: https://arxiv.org/pdf/1712.00734.pdf
 
 #################################################
+# Note:
+# 1. Here, TCF periods are scaled by `res` since TCF calculates periodogram in units of cadence rather than absolute time values.
+# 2. So this means the periods passed to TCF and BLS, in terms of values, could be different, but scientifically they are doing the same thing.
+
 
 library('extRemes')
 library('boot')
@@ -158,7 +162,6 @@ evd <- function(
 
     # (2) Max of each partial periodogram
     # Note that from Suveges paper, the reason for doing block maxima is: "The principal goal is to decrease the computational load due to a bootstrap. At the same time, the reduced frequency set should reflect the fundamental characteristics of a full periodogram: ..."
-    # TODO: Should we use standardization/normalization somewhere? See astropy _statistics module under LombScargle to know at which step to normalize -- should we normalize these bootstrap periodograms or only the final full periodogram.
     maxima_R <- c()
     for (j in 1:R) {
         KLfreqs <- freqdivideFreqGrid(freqGrid, L, K)
@@ -189,7 +192,7 @@ evd <- function(
             # freqsPartial are the same frequencies as used in BLS (verified).
             freqsPartial <- seq(from = min(KLfreqs), by = freqStepPartial, length.out = K*L)
             pToTry <- 1 / freqsPartial
-            out <- tcf(bootTS[j,], p.try = pToTry*res, print.output = FALSE)  # Multiplying by res because TCF works according to cadence rather than actual time values, unlike BLS. Doing this ensures, TCF still peaks at 72 hr for different res values, for example.
+            out <- tcf(bootTS[j,], p.try = pToTry * res, print.output = FALSE)  # Multiplying by res because TCF works according to cadence rather than actual time values, unlike BLS. Doing this ensures, TCF still peaks at 72 hr for different res values, for example.
             if (useStandardization) {
                 partialPeriodogram <- standardizeAPeriodogram(out, periodsToTry = pToTry, algo="TCF", mode=mode)
             }
@@ -274,7 +277,7 @@ evd <- function(
         freqs <- seq(from = min(freqGrid), by = fstep, length.out = length(freqGrid))
         periodsToTry <- 1 / freqs
         residTCF <- getResidForTCF(y)
-        output <- tcf(residTCF, p.try = periodsToTry, print.output = TRUE)
+        output <- tcf(residTCF, p.try = periodsToTry * res, print.output = TRUE)
         if (useStandardization) {
             output <- standardizeAPeriodogram(output, periodsToTry=periodsToTry, algo="TCF", mode=mode)
         }

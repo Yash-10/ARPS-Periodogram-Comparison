@@ -2,6 +2,12 @@
 ## To run, do source(bls.R) and source(norm_bls_periodogram.R) if using BLS, and similarly if using TCF ##
 ##########################################################################################################
 
+######################################### NOTE #################################################
+# 1. In this code, tcf periods are scaled by `res` before passing into tcf() since tcf works with cadences rather than absolute time values, unlike BLS.
+#    - The period tcf prints on terminal would differ from the period at max(power) shown in the plot.
+#    - Such scaling is also done in eva_periodogram.R since TCF calculates periodogram in units of cadences rather than absolute time values.
+################################################################################################
+
 # # Below cv function from https://rpubs.com/mengxu/loess_cv
 # library(bootstrap)
 # loess_wrapper_extrapolate <- function (x, y, span.vals = seq(0.5, 1, by = 0.05), folds = 5){
@@ -124,7 +130,8 @@ standardPeriodogram <- function(
         freqs <- seq(from = min(freqGrid), by = fstep, length.out = length(freqGrid))
         periodsToTry <- 1 / freqs
         residTCF <- getResidForTCF(y)
-        output <- tcf(residTCF, p.try = periodsToTry, print.output = TRUE)
+        output <- tcf(residTCF, p.try = periodsToTry*res, print.output = TRUE)
+        # output$inper = output$inper / 2
     }
 
     # (1) Remove trend in periodogram
