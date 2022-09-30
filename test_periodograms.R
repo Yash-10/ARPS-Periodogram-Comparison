@@ -13,16 +13,19 @@ getLightCurve <- function(
     gaussStd=1e-4,
     ar=0.2,
     ma=0.2,
-    order=c(1, 0, 1)  # ARMA, no differencing.
+    order=c(1, 0, 1),  # ARMA, no differencing.
+    checkConditions=TRUE  # Whether to perform small unit tests within the code to ensure the output is as expected. Recommended: Set to TRUE for almost all cases, but added this option so that `uniroot` does not throw error when finding the limiting depth - see below functions.
 ) {
-    stopifnot(exprs = {
-        period > 0
-        depth >= 0
-        depth <= 100
-        duration > 0
-        duration <= 1
-        ntransits >= 0
-    })
+    if (checkConditions) {
+        stopifnot(exprs = {
+            period > 0
+            depth >= 0
+            depth <= 100
+            duration > 0
+            duration <= 1
+            ntransits >= 0
+        })   
+    }
 
     # Create a simulated planet transit time series based on period, depth, and transit duration.
     inTransitValue = 1 - (depth / 100) * 1
@@ -30,12 +33,14 @@ getLightCurve <- function(
     inTransitTime = duration * period * 24  # inTransitTime is the actual absolute in-transit time (in hours).
     constTime = (period * 24 - 2 - inTransitTime)
 
-    stopifnot(exprs = {
-        inTransitValue < 1
-        inTransitValue >= 0
-        inTransitTime > 0
-        constTime > 0
-    })
+    if (checkConditions) {
+        stopifnot(exprs = {
+            inTransitValue < 1
+            inTransitValue >= 0
+            inTransitTime > 0
+            constTime > 0
+        })
+    }
 
     # First generate the time epochs.
     tIncrement <- 1 / res
@@ -70,7 +75,9 @@ getLightCurve <- function(
         set.seed(1)
         # Note that autoregresive noise has been scaled by `gaussStd` so that the range of values in both Gaussian and autoregressive case look similar.
         # We can as well remove that scaling, but using it allows us to compare Gaussian and autoregressive cases much easier since then the only difference is that Gaussian is uncorrelated and autoregressive is correlated noise. And we don't need to worry about autoregressive and Gaussian noises being on different scales.
-        autoRegNoise <- arima.sim(model = list(order=order, ar=ar, ma=ma), n = length(y)) * gaussStd  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
+        # autoRegNoise <- arima.sim(list(order = c(3,0,3), ar = c(0.2,0.3,0.2), ma=c(0.2,0.2,0.3)), n = length(y)) * gaussStd  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
+        # Note: Use the above example (immediate above) or modifications to it to use more stronger autoregressive noises. 
+        autoRegNoise <- arima.sim(list(ar=0.2, ma=0.2, n = length(y))) * gaussStd
         y <- y + autoRegNoise
         noiseStd <- sd(autoRegNoise)
         noiseIQR <- IQR(autoRegNoise)
@@ -80,9 +87,11 @@ getLightCurve <- function(
         noiseIQR <- 0
     }
 
-    stopifnot(exprs={
-        length(y) == length(t)
-    })
+    if (checkConditions) {
+        stopifnot(exprs={
+            length(y) == length(t)
+        })
+    }
 
     # Print some things
     print(noquote(paste("Period = ", sprintf("%.3f", period))))

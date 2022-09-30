@@ -79,7 +79,8 @@ evd <- function(
     ma=0.2,
     order=c(1, 0, 1),
     res=2,  # Resolution for creating the time series. Refer getLightCurve from test_periodogram.R
-    mode='detrend'  # Standardization mode: either detrend_normalize or detrend, see the function `standardizeAPeriodogram`. Only used if useStandardization=TRUE.
+    mode='detrend',  # Standardization mode: either detrend_normalize or detrend, see the function `standardizeAPeriodogram`. Only used if useStandardization=TRUE.
+    checkConditions=TRUE  # Passed to light curve generation code.
 ) {
     # set.seed(1)
 
@@ -102,7 +103,7 @@ evd <- function(
     # TODO: We need to do some test by varying L and R to see which works better for each case?
 
     # Generate light curve using the parameters.
-    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, res=res)
+    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, res=res, checkConditions=checkConditions)
     y <- unlist(yt[1])
     t <- unlist(yt[2])
 
