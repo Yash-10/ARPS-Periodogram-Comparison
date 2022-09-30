@@ -169,7 +169,6 @@ evd <- function(
         stopifnot(exprs={
             length(KLfreqs) == K * L  # Obviously, length of the K*L frequencies must be K*L.
             length(bootTS[j,]) == length(y)  # Bootstrapped time series must be of same length as original time series.
-            # TODO: Important note: Currently, the below condition is NOT ensured by the code: there could be an overlap, but the chances of it decreases as L decreases. If the code throws error at this point, currently only option is to re-run until no error occurs.
             all(unique(KLfreqs) == KLfreqs)  # Note that the K*L frequencies must be non-overlapping. So all must be unique.
         })
 
