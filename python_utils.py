@@ -12,6 +12,7 @@ def rand_parts(seq, n, l):
         list: The desired result.
 
     """
+    random.seed(1)
     n = int(n)
     l = int(l)
     indices = range(int(len(seq) - (l - 1) * n))

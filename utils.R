@@ -46,9 +46,10 @@ getFreqGridToTest <- function(
         if (algo == "BLS") {
             q = duration  # single transit duration / light curve duration.
         }
-        else if (algo == "TCF") {  # TODO: This actually yields a very bad GEV fit - so something is wrong in calculating the duty cycle for TCF.
+        else if (algo == "TCF") {  # TODO: Confirm duty cycle scaling by res.
             # Duty cycle for TCF taken from Caceres, 2019 methodology paper: https://iopscience.iop.org/article/10.3847/1538-3881/ab26b8
-            q = 1 / (period * 24)
+            # Again, scaling by `res` is performed because TCF calculates periodogram in terms of cadence rather than absolute times.
+            q = res * 1 / (period * 24)
         }
         s = length(t)
         freqStep = q / (s * ofac)
@@ -58,6 +59,8 @@ getFreqGridToTest <- function(
         # Note that too much oversampling can lead to artifacts. These artifacts can be wrongly interpreted as a true periodic component in the periodogram.
         freqStep <- (freqMax - freqMin) / (nfreq * ofac)  # Oversampled by a factor, `ofac`.
     }
+    print("freqsteP:")
+    print(freqStep)
 
     freqGrid <- seq(from = freqMin, to = freqMax, by = freqStep)  # Goes from ~0.001 to max freq set by the time spacing (NOTE: fmax must be <= Nyquist frequency = 1/(2*delta_t) -- from Suveges, 2014), where delta_t here is res.
     freqGrid <- freqGrid[-length(freqGrid)]  # Remove the last frequency. This is done to prevent periodogram returning nan power at frequency = Nyquist frequency.
@@ -81,7 +84,7 @@ getFreqGridToTest <- function(
 # }
 
 freqdivideFreqGrid <- function(freqGrid, L, K) {
-    # set.seed(1)  # Set seed for reproducibility.
+    set.seed(1)  # Set seed for reproducibility.
 
     if ((K %% 2) == 0) {
         safeDist <- 1 + K/2  # 1 is added just to be more safe at the edges of the frequency grid. This is just a hackery.
@@ -95,6 +98,38 @@ freqdivideFreqGrid <- function(freqGrid, L, K) {
     return (unlist(KLfreqs))
 }
 
+
+findAGoodOfac <- function() {  # This function is just a quick, rough method, not intended to use for sophisticated analyses. 
+    hwhms <- c()
+    things<-list(c(3, 0.01, 1/36), c(3, 0.005, 1/36), c(5, 0.01, 1/60), c(5, 0.005, 1/60), c(7, 0.01, 1/84), c(7, 0.005, 1/84), c(11, 0.005, 1/132))
+    for (thing in things) {
+        yt <- getLightCurve(thing[1], thing[2], thing[3], noiseType=1, ntransits=10, gaussStd=gaussStd, ar=ar, ma=ma, order=order, res=res, checkConditions=TRUE)
+        y <- unlist(yt[1])
+        t <- unlist(yt[2])
+        freqGrid <- getFreqGridToTest(t, res=2, ofac=1, useOptimalFreqSampling=FALSE, algo="BLS")
+        output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
+
+        # fstep <- (max(freqGrid) - min(freqGrid)) / length(freqGrid)
+        # freqs <- seq(from = min(freqGrid), by = fstep, length.out = length(freqGrid))
+        # periodsToTry <- 1 / freqs
+        # residTCF <- getResidForTCF(y)
+        # output <- tcf(residTCF, p.try = periodsToTry * res, print.output = TRUE)
+
+        out<-output$spec
+        ptest<-output$periodsTested
+        i<-which.max(out)
+        l<-i-100
+        u<-i+100
+        plot(1/ptest[l:u], out[l:u])
+        hwhm_ <- fwhm(1/ptest[l:u], out[l:u])/2
+        hwhms <- append(hwhms, hwhm_)
+        print("hwhm")
+        print(hwhm_)
+    }
+    print(hwhms)
+    print("mean")
+    print(mean(hwhms))
+}
 
 ### Store ###
     # This is the earlier code (that did not work well), to divide the frequency grid into K*L frequencies.
@@ -124,7 +159,6 @@ freqdivideFreqGrid <- function(freqGrid, L, K) {
     # freqdivideFreqGrid <- function(freqGrid, L, K) {
     # # set.seed(1)  # Set seed for reproducibility.
 
-    # # TODO: Need to verify this works as expected for large oversampling factors. I think that the hackery below might still yield errors for larger ofac values than 2.
     # if ((K %% 2) == 0) {
     #     safeDist <- 1 + K/2  # 1 is added just to be more safe at the edges of the frequency grid. This is just a hackery.
     # }

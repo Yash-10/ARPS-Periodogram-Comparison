@@ -31,7 +31,9 @@ library('goftest')  # install.packages("goftest")
 library('gbutils')  # https://search.r-project.org/CRAN/refmans/gbutils/html/cdf2quantile.html
 
 
-# statFunc <- function(a) { return (a) }
+boot_stat <- function(original_vector, resample_vector) {
+    original_vector[resample_vector]
+}
 
 calculateReturnLevel <- function(
     fap,   # Requested fap.
@@ -74,7 +76,8 @@ evd <- function(
     ntransits=10,
     plot=TRUE,
     ofac=2,  # ofac is also called as "samples per peak" sometimes.
-    useOptimalFreqSampling=FALSE,  # If want to use the optimal frequency sampling from Ofir, 2014: delta_freq = q / (s * os), where s is whole time series duration, os is oversampling factor and q is the duty cycle (time in single transit / total time series duration).
+    # It is recommended to use `useOptimalFreqSampling` for transit periodograms. For periodograms of sine-like signals, 1/s is the frequency resolution, so it is not necessary to use optimal frequency sampling and instead better use uniform frequency sampling.
+    useOptimalFreqSampling=TRUE,  # If want to use the optimal frequency sampling from Ofir, 2014: delta_freq = q / (s * os), where s is whole time series duration, os is oversampling factor and q is the duty cycle (time in single transit / total time series duration).
     alpha=0.05,  # Significance level for hypothesis testing on the GEV fit on periodogram maxima. TODO: How to choose a significance level beforehand - any heuristics to follow?
     # Parameters for controlling noise. NOTE: `gaussStd` is considered for noiseType=2 as well for appropriate scaling of the autoregressive noise.
     # HENCE IT IS IMPORTANT TO KEEP THE SAME gaussStd value WHEN COMPARING BETWEEN AUTOREGRESSIVE AND GAUSSIAN NOISE CASES.
@@ -84,10 +87,10 @@ evd <- function(
     order=c(1, 0, 1),
     res=2,  # Resolution for creating the time series. Refer getLightCurve from test_periodogram.R
     mode='detrend',  # Standardization mode: either detrend_normalize or detrend, see the function `standardizeAPeriodogram`. Only used if useStandardization=TRUE.
-    checkConditions=TRUE  # Passed to light curve generation code.
+    checkConditions=TRUE,  # Passed to light curve generation code.
+    significanceMode='max'  # This tells whose significance (in terms of FAP) should be reported. 'max' means report significance of max(output), where output is the original periodogram (note output can be detrended/standardized based on `useStandardization` and `mode`).
+    # (cont...) Other option is 'expected_peak' which tells to calculate significance of not the maximum power but the power corresponding to the expected period. 'expected_peak' option can only be used in simulations.
 ) {
-    # set.seed(1)
-
     # L, R, noiseType, ntransits must be integers.
     stopifnot(exprs={
         L %% 1 == 0
@@ -139,9 +142,20 @@ evd <- function(
     # This answer: https://stats.stackexchange.com/a/317724 seems to say that block resampling resamples blocks with replacement.
     # Also note that Suveges says that the marginal distribution of each of the bootstrapped resample time series must approximately be the same as the original time series.
 
-    # bootTS <- replicate(R, replicate(length(y), sample(y, 1, replace=TRUE)))
-    bootTS <- replicate(R, sample(y, length(y), replace=TRUE))
-    bootTS <- aperm(bootTS)  # This just permutes the dimension of bootTS - rows become columns and columns become rows - just done for easier indexing further in the code.
+    # bootTS <- replicate(R, sample(y, length(y), replace=TRUE))
+    # bootTS <- aperm(bootTS)  # This just permutes the dimension of bootTS - rows become columns and columns become rows - just done for easier indexing further in the code.
+    set.seed(1)
+    bootTS <- boot(y, statistic=boot_stat, R=R)$t
+
+    # Note: The below commented out code can be used to test if the bootstrap resampling suggests the data is white noise or not.
+    # However, it is observed in around 1 in 500 cases, the box test suggests the bootstrapped time series is not white noise. But we ignore that since 1/500 is a low probability.
+    # for (j in 1:R) {
+    #     lJStats <- Box.test(bootTS[j,], lag = 1, type = "Ljung")
+    #     print(lJStats[3])
+    #     stopifnot(exprs={
+    #         lJStats[3] > 0.005
+    #     })
+    # }
 
     stopifnot(exprs={
         dim(bootTS) == c(R, length(y))
@@ -156,6 +170,7 @@ evd <- function(
     stopifnot(exprs={
         all(freqGrid <= res / 2)  # No frequency must be greater than the Nyquist frequency.
         length(freqGrid) >= K * L  # K*L is ideally going to be less than N, otherwise the bootstrap has no benefit in terms of compuation time.
+        length(freqGrid) / (K * L) <= length(t) / 2  # This condition is mentioned in https://ui.adsabs.harvard.edu/abs/2012ada..confE..16S.
     })
 
     print(sprintf("Max frequency: %f, Min frequency: %f", max(freqGrid), min(freqGrid)))
@@ -239,13 +254,12 @@ evd <- function(
     result <- ad.test(maxima_R, null = "pevd", loc=location, scale=scale, shape=shape, nullname = "pevd", estimated = FALSE)  # estimated = TRUE would have been fine as well since the gevd parameters (location, scale, shape) are estimated using the data itself - those three parameters are not data-agnostic. But here we use estimated = FALSE because using TRUE uses a different variant of AD test using the Braun's method which we do not want.
     print(result)
     print(sprintf("p-value for Anderson-Darling goodness-of-fit test of the periodogram maxima: %f", result$p.value))
-    # Check if AD fit is good enough. If not, return a dummy fap value.
+    # Check if AD fit is good enough. If not, returns NULL.
     # This check serves as a way to "automatically" find if the GEV fit is good and if it can be extrapolated to the full periodogram.
     # Suveges, 2014 suggests looking at the diagnostic plots before extrapolating to full periodogram, but that is cumbersome for large-scale simulations. Hence, this is a simple way to overcome manual fit quality inspection.
     if (result$p.value < alpha) {  # Reject null hypothesis: the maxima sample is in the favor of alternate hypothesis (that the sample comes from a different distribution than GEV).
-        fap <- -999
-        print("Anderson-Darling test failed while fitting GEV to the sample periodogram maxima. A dummy fap value will be returned with value -999.")
-        return (fap)
+        print("Anderson-Darling test failed while fitting GEV to the sample periodogram maxima.")
+        return (NULL)
     }
 
     # Diagnostic plots.
@@ -265,6 +279,7 @@ evd <- function(
     # Compute full periodogram.
     if (algo == "BLS") {
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
+        ptested<-output$periodsTested
         if (useStandardization) {
             output <- standardizeAPeriodogram(output, periodsToTry=NULL, algo="BLS", mode=mode)
         }
@@ -291,8 +306,19 @@ evd <- function(
     print(sprintf("Return level corresponding to FAP = %f: %f", 0.01, returnLevel))
 
     # For interpretation, we would like to get FAP given a return level rather than giving return level from a given FAP.
+    if (significanceMode == 'max') {
+        toCheck <- max(output)    
+    }
+    else if (significanceMode == 'expected_peak') {
+        if (algo == "BLS") {
+            toCheck <- output[which.min(abs(ptested - period * 24))]
+        }
+        else if (algo == "TCF") {
+            toCheck <- output[which.min(abs(periodsToTry - period * 24))]
+        }
+    }
     print("Calculating FAP...")
-    fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), max(output))
+    fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), toCheck)
     print(sprintf("FAP = %.10f", fap))
 
     return (c(fap, summary(fitEVD)$AIC)); # Note: c() can be used since all the values returned are of same type. If ever they are of different types, use list() instead.
