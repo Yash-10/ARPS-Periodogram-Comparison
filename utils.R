@@ -18,6 +18,7 @@ getResidForTCF <- function(
 
 getFreqGridToTest <- function(
     t,  # Observation epochs.
+    period, duration,
     res=2,  # This the resolution in the time series that controls the candence. res=2 means cadence of 30 min and res=1 means 1hr, for example.
     ofac=1,  # Oversampling factor for frequency selection.
     useOptimalFreqSampling=FALSE,

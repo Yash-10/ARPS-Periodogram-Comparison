@@ -78,7 +78,7 @@ evd <- function(
     ofac=2,  # ofac is also called as "samples per peak" sometimes.
     # It is recommended to use `useOptimalFreqSampling` for transit periodograms. For periodograms of sine-like signals, 1/s is the frequency resolution, so it is not necessary to use optimal frequency sampling and instead better use uniform frequency sampling.
     useOptimalFreqSampling=TRUE,  # If want to use the optimal frequency sampling from Ofir, 2014: delta_freq = q / (s * os), where s is whole time series duration, os is oversampling factor and q is the duty cycle (time in single transit / total time series duration).
-    alpha=0.05,  # Significance level for hypothesis testing on the GEV fit on periodogram maxima. TODO: How to choose a significance level beforehand - any heuristics to follow?
+    alpha=0.01,  # Significance level for hypothesis testing on the GEV fit on periodogram maxima. TODO: How to choose a significance level beforehand - any heuristics to follow?
     # Parameters for controlling noise. NOTE: `gaussStd` is considered for noiseType=2 as well for appropriate scaling of the autoregressive noise.
     # HENCE IT IS IMPORTANT TO KEEP THE SAME gaussStd value WHEN COMPARING BETWEEN AUTOREGRESSIVE AND GAUSSIAN NOISE CASES.
     gaussStd=1e-4,  # 0.01% Gaussian noise
@@ -87,7 +87,7 @@ evd <- function(
     order=c(1, 0, 1),
     res=2,  # Resolution for creating the time series. Refer getLightCurve from test_periodogram.R
     mode='detrend',  # Standardization mode: either detrend_normalize or detrend, see the function `standardizeAPeriodogram`. Only used if useStandardization=TRUE.
-    checkConditions=TRUE,  # Passed to light curve generation code.
+    checkConditions=TRUE,  # Mostly passed to light curve generation code. Also used in ad.test p-value check in this function.
     significanceMode='max'  # This tells whose significance (in terms of FAP) should be reported. 'max' means report significance of max(output), where output is the original periodogram (note output can be detrended/standardized based on `useStandardization` and `mode`).
     # (cont...) Other option is 'expected_peak' which tells to calculate significance of not the maximum power but the power corresponding to the expected period. 'expected_peak' option can only be used in simulations.
 ) {
@@ -162,7 +162,7 @@ evd <- function(
     })
 
     # Create a frequency grid.
-    freqGrid <- getFreqGridToTest(t, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo)
+    freqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo)
     if (any(is.na(freqGrid))) {
         stop("Atleast one frequency in the frequency grid is NaN!")
     }
@@ -257,9 +257,10 @@ evd <- function(
     # Check if AD fit is good enough. If not, returns NULL.
     # This check serves as a way to "automatically" find if the GEV fit is good and if it can be extrapolated to the full periodogram.
     # Suveges, 2014 suggests looking at the diagnostic plots before extrapolating to full periodogram, but that is cumbersome for large-scale simulations. Hence, this is a simple way to overcome manual fit quality inspection.
-    if (result$p.value < alpha) {  # Reject null hypothesis: the maxima sample is in the favor of alternate hypothesis (that the sample comes from a different distribution than GEV).
-        print("Anderson-Darling test failed while fitting GEV to the sample periodogram maxima.")
-        return (NULL)
+    if (checkConditions) {
+        if (result$p.value < alpha) {  # Reject null hypothesis: the maxima sample is in the favor of alternate hypothesis (that the sample comes from a different distribution than GEV).
+            warning("Anderson-Darling test failed while fitting GEV to the sample periodogram maxima. This means the GEV fit was sub-optimal and the FAP estimate may not be reliable.")
+        }
     }
 
     # Diagnostic plots.
@@ -426,7 +427,7 @@ smallestPlanetDetectableTest <- function(  # This function returns the smallest 
     png(filename=sprintf("%sdays_%shours.png", period, duration * period * 24))
     plot(depths*1e4, faps, xlab='Depth (ppm)', ylab='FAP', type='o', ylim=c(1e-7, 0.02), log='y')  # Upper limit is set to 0.02 which is slightly larger than 0.01, the threshold FAP.
     axis(1, at=1:length(depths), labels=depths*1e4)
-    # TODO: Decide what threshold FAP to use for the autoregressive case.
+    # TODO: Decide what threshold FAP to use for the autoregressive case. Or maybe keep it same irrespective of the noise.
     abline(h=0.01, col='black', lty=2)  # Here 1% FAP is used. Another choice is to use FAP=0.003, which corresponds to 3-sigma criterion for Gaussian -- commonly used in astronomy.
     dev.off()
 }
@@ -446,7 +447,7 @@ findLimitingDepth <- function(period, duration, ...) {
     de <- function(depth) { return (depthEquation(depth, period=period, duration=duration, ...)); }
     # TODO: In future, we can set the upper limit of interval depth (currently, 0.3) intelligently based on the IQR of noise, for example.
     # Note that extendInt = "yes" is passed so that limiting depths for already significant planets (that extend beyond the passed interval) can also be availed using this function. So extendInt is added only for allowing applications to various types of planets.
-    return (uniroot(de, interval=c(0.004, 0.3), extendInt = "yes", tol=1e-4)$root);  # Lower limit set using the lower limit of depths typically observed in Kepler (40 ppm). Upper limit is not set the same as the upper limit of typical Kepler planets since we are interested in smaller planets only (FAP for large planets is anyways going to approach zero).
+    return (uniroot(de, interval=c(0., 1.), tol=1e-4, extendInt="yes")$root);  # Lower limit set using the lower limit of depths typically observed in Kepler (40 ppm). Upper limit is not set the same as the upper limit of typical Kepler planets since we are interested in smaller planets only (FAP for large planets is anyways going to approach zero).
 }
 
 # This function is only for a quick verification test. One would not expect to get the exact depth where the planet starts to become insignificant.

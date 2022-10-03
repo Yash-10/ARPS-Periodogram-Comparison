@@ -120,7 +120,7 @@ standardPeriodogram <- function(
     noiseIQR <- unlist(yt[4])
 
     # Create frequency grid.
-    freqGrid <- getFreqGridToTest(t, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo)
+    freqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo)
 
     if (algo == "BLS") {
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
