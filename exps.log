@@ -1,0 +1,45 @@
+(1) L = 500
+R = 200
+ntransits = 10
+significanceMode = 'max'
+noiseType = 1
+algo = "BLS"
+
+print(limitingDepths_1)
+print(limitingDepths_2)
+
+[1] 0.009958659 0.123730358 0.012674531 0.013649558 0.013757446
+[1]  0.008769491  0.008673050  0.009479163  0.007687503 -0.008191000
+
+See bls_gaussian_period.png
+
+(2) L = 500
+R = 200
+ntransits = 10
+significanceMode = 'max'
+noiseType = 1
+algo = "TCF"
+
+print(limitingDepths_1)
+print(limitingDepths_2)
+
+[1]         NA 0.74534731 0.01506433 0.02018086 0.15678830
+[1]            NA  0.9979826834  0.0083647602 -0.0003615768  0.0139343707
+
+
+(3) period<-3
+duration<-1/36
+ntransits_arr <- c(5, 10, 20, 50, 100)
+limitingDepths<-c()
+for (ntransits in ntransits_arr) {
+    ld <- findLimitingDepth(
+      period, duration,
+      algo="TCF", ofac=2, res=2, noiseType=1, ntransits=ntransits
+    )
+    limitingDepths <- append(limitingDepths, ld)
+}
+
+limitingDepths
+[1]           NA           NA 0.0000604248 0.0043443359 0.0043730464
+
+See tcf_ntransits_gaussian.png
