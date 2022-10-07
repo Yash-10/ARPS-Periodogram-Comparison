@@ -102,7 +102,7 @@ standardPeriodogram <- function(
     windowLength=100,
     plot = TRUE,
     ntransits=10,
-    ofac=1,
+    ofac=2,
     res=2,  # Light curve resolution, see getLightCurve().
     showFAP = FALSE,  # Whether to show the calculated false alarm probability in the plot. If TRUE, it will take much more time since internally the evd() function is run.
     gaussStd=1e-4,
@@ -205,7 +205,7 @@ standardPeriodogram <- function(
             pergram <- output$outpow
         }
 
-        plot(t, y, type='l', main=sprintf("period: %.3f days, depth: %.5f (pct), duration: %.3f (hrs)\n(%s) noise std dev: %f, noise IQR: %f", period, depth, period * 24 * duration, if (noiseType == 1) "gaussian" else "autoregressive", noiseStd, noiseIQR), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)')
+        plot(t, y, type='l', main=sprintf("period: %.3f days, depth: %.6f (%), duration: %.3f (hrs)\n(%s) noise std dev: %f, noise IQR: %f", period, depth, period * 24 * duration, if (noiseType == 1) "gaussian" else "autoregressive", noiseStd, noiseIQR), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)')
         acfEstimate <- acf(y, plot = FALSE)
         lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
         plot(acfEstimate, main=sprintf("P(Ljung-Box) = %s, lag-1 acf = %s", lJStats[3], acfEstimate$acf[[2]]), cex=2)
@@ -244,7 +244,7 @@ standardPeriodogram <- function(
             plot(hist.data$count, type='h', log='y', main=sprintf('Original %s periodogram histogram:\nskewness: %.3f, kurtosis: %.3f', algo, SkewnessBefore, KurtosisBefore), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
         }
         axis(1, at=1:length(hist.data$mids), labels=hist.data$mids)
-        
+
         SkewnessAfter <- skewness(normalizedPeriodogram)
         KurtosisAfter <- kurtosis(normalizedPeriodogram)
 

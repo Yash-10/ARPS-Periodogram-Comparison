@@ -18,6 +18,7 @@
 # Note:
 # 1. Here, TCF periods are scaled by `res` since TCF calculates periodogram in units of cadence rather than absolute time values.
 # 2. So this means the periods passed to TCF and BLS, in terms of values, could be different, but scientifically they are doing the same thing.
+# 3. All of the period values printed on terminal are in hours, unless explicitly mentioned anywhere.
 
 
 library('extRemes')
@@ -153,7 +154,7 @@ evd <- function(
     #     lJStats <- Box.test(bootTS[j,], lag = 1, type = "Ljung")
     #     print(lJStats[3])
     #     stopifnot(exprs={
-    #         lJStats[3] > 0.005
+    #         lJStats[3] > 0.01
     #     })
     # }
 
@@ -192,7 +193,7 @@ evd <- function(
         })
 
         if (algo == "BLS") {
-            out <- bls(bootTS[j,], t, per.min=min(1/KLfreqs), per.max=max(1/KLfreqs), nper=K*L, bls.plot = FALSE)
+            out <- bls(bootTS[j,], t, per.min=min(1/KLfreqs), per.max=max(1/KLfreqs), nper=K*L, bls.plot = FALSE, print.output = FALSE)
             if (useStandardization) {
                 partialPeriodogram <- standardizeAPeriodogram(out, periodsToTry=NULL, algo="BLS", mode=mode)  # For BLS, the periods tested is gotten from the R object `out`, hence we do not need to pass periodsToTy.
             }
@@ -436,7 +437,9 @@ smallestPlanetDetectableTest <- function(  # This function returns the smallest 
 # it finds the depth corresponding to the case FAP = 0.01 called the limiting_depth. So any transit with depth < limiting_depth
 # is statistically insignificant using the FAP = 0.01 criterion.
 depthEquation <- function(depth, period, duration, ...) {
-    result <- evd(period, depth, duration, ...)
+    result <- try(evd(period, depth, duration, ...))
+    # The below hack is only performed to prevent errors in long-running.
+    result <- if (inherits(result, "try-error")) 1.0 else result 
     return (result[1] - 0.01);
 }
 
@@ -447,7 +450,9 @@ findLimitingDepth <- function(period, duration, ...) {
     de <- function(depth) { return (depthEquation(depth, period=period, duration=duration, ...)); }
     # TODO: In future, we can set the upper limit of interval depth (currently, 0.3) intelligently based on the IQR of noise, for example.
     # Note that extendInt = "yes" is passed so that limiting depths for already significant planets (that extend beyond the passed interval) can also be availed using this function. So extendInt is added only for allowing applications to various types of planets.
-    return (uniroot(de, interval=c(0., 1.), tol=1e-4, extendInt="yes")$root);  # Lower limit set using the lower limit of depths typically observed in Kepler (40 ppm). Upper limit is not set the same as the upper limit of typical Kepler planets since we are interested in smaller planets only (FAP for large planets is anyways going to approach zero).
+    # Below try() hack from https://stackoverflow.com/questions/70200174/how-can-i-avoid-uniroot-error-that-stops-the-loop
+    findLDepth <- try(uniroot(de, interval=c(0., 1.), tol=1e-4, extendInt="yes"))
+    return (if (inherits(findLDepth, "try-error")) NA else findLDepth$root)
 }
 
 # This function is only for a quick verification test. One would not expect to get the exact depth where the planet starts to become insignificant.

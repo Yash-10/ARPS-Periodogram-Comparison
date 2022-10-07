@@ -1,5 +1,7 @@
 library(moments)
 
+###### Note: Multiply the depth value by 100 to get the depth in % ######
+
 getLightCurve <- function(
     period,  # What period (in days) do you want to have in your light curve, will be a single value. eg: 1/3/5/7/9.
     depth,  # What depth (in % of the star's presumed constant level which is 1) do you want to have in your light curve, will be a single value. eg: 0.01/0.05/0.1/0.15/0.2.
@@ -75,9 +77,9 @@ getLightCurve <- function(
         set.seed(1)
         # Note that autoregresive noise has been scaled by `gaussStd` so that the range of values in both Gaussian and autoregressive case look similar.
         # We can as well remove that scaling, but using it allows us to compare Gaussian and autoregressive cases much easier since then the only difference is that Gaussian is uncorrelated and autoregressive is correlated noise. And we don't need to worry about autoregressive and Gaussian noises being on different scales.
-        # autoRegNoise <- arima.sim(list(order = c(3,0,3), ar = c(0.2,0.3,0.2), ma=c(0.2,0.2,0.3)), n = length(y)) * gaussStd  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
+        autoRegNoise <- arima.sim(list(order = c(3,0,3), ar = c(0.2,0.3,0.2), ma=c(0.2,0.2,0.3)), n = length(y)) * gaussStd  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
         # Note: Use the above example (immediate above) or modifications to it to use more stronger autoregressive noises. 
-        autoRegNoise <- arima.sim(list(ar=0.2, ma=0.2, n = length(y))) * gaussStd
+        # autoRegNoise <- arima.sim(list(order=c(1, 0, 1), ar=0.2, ma=0.2), n = length(y)) * gaussStd
         y <- y + autoRegNoise
         noiseStd <- sd(autoRegNoise)
         noiseIQR <- IQR(autoRegNoise)
@@ -94,9 +96,10 @@ getLightCurve <- function(
     }
 
     # Print some things
-    print(noquote(paste("Period = ", sprintf("%.3f", period))))
-    print(noquote(paste("Depth = ", sprintf("%.6f", (depth / 100) * 1))))
-    print(noquote(paste("Transit duration = ", sprintf("%.3f", inTransitTime))))
+    print("==== Simulated light curve parameters ====")
+    print(noquote(paste("Period (hours) = ", sprintf("%.3f", period * 24))))
+    print(noquote(paste("Depth = ", sprintf("%.6f",  depth))))
+    print(noquote(paste("Transit duration (hours) = ", sprintf("%.3f", inTransitTime))))
 
     return (list(y, t, noiseStd, noiseIQR))
 
