@@ -4,7 +4,7 @@
 
 #### this file can be sourced via 'source(bls.R)' in an R session
 
-dyn.load("/content/arps/BLS/eebls.so")
+dyn.load("/home/oem/arps/BLS/eebls.so")
 bls <- function(data.vals,     ## vector with signal
                 data.times,    ## vector with times
                 bls.plot = TRUE,   ## plot periodogram
@@ -13,7 +13,8 @@ bls <- function(data.vals,     ## vector with signal
                 per.max = data.times[length(data.times)]-data.times[1], ##max period
                 nper = length(data.times)*10, ##numper of period values to test
                 q.min = 0.01, ## min duration/period fraction
-                q.max = 0.15  ## max duration/period fraction
+                q.max = 0.15,  ## max duration/period fraction
+                print.output = TRUE
                 ){
   tot.pts <- length(data.vals)
   freq.min <- 1/per.max
@@ -48,9 +49,11 @@ bls <- function(data.vals,     ## vector with signal
   }
   bls.vals <- list(fBLS$p,fBLS$bper,fBLS$bpow,fBLS$depth,fBLS$qtran,fBLS$qtran*fBLS$bper,per)
   names(bls.vals) <- c("spec","per","maxpow","depth","qtran","dur", "periodsTested")
-  print(noquote(paste("Peak Power =",sprintf("%.3f",fBLS$bpow))))
-  print(noquote(paste("Period =",sprintf("%.3f",fBLS$bper))))
-  print(noquote(paste("Depth =",sprintf("%.3f",fBLS$depth))))
-  print(noquote(paste("Duration =",sprintf("%.3f",fBLS$qtran*fBLS$bper))))
+  if (print.output) {
+    print(noquote(paste("Peak Power =",sprintf("%.6f",fBLS$bpow))))
+    print(noquote(paste("Period =",sprintf("%.3f",fBLS$bper))))
+    print(noquote(paste("Depth =",sprintf("%.6f",fBLS$depth))))
+    print(noquote(paste("Duration =",sprintf("%.3f",fBLS$qtran*fBLS$bper))))
+  }
   return(bls.vals)
 }
