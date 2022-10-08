@@ -3,7 +3,7 @@
 
 #### this file can be sourced via 'source(pfilt_interface.R)' in an R session
 
-dyn.load("/content/arps/TCF3.0/a.out")
+dyn.load("/kaggle/working/arps/TCF3.0/a.out")
 
 tcf <- function(y,     ## time series vector
 ##                per.range = c(2,length(y)/2),
