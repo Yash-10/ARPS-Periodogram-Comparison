@@ -260,7 +260,8 @@ evd <- function(
     # Suveges, 2014 suggests looking at the diagnostic plots before extrapolating to full periodogram, but that is cumbersome for large-scale simulations. Hence, this is a simple way to overcome manual fit quality inspection.
     if (checkConditions) {
         if (result$p.value < alpha) {  # Reject null hypothesis: the maxima sample is in the favor of alternate hypothesis (that the sample comes from a different distribution than GEV).
-            warning("Anderson-Darling test failed while fitting GEV to the sample periodogram maxima. This means the GEV fit was sub-optimal and the FAP estimate may not be reliable.")
+            warning("Anderson-Darling test failed while fitting GEV to the sample periodogram maxima. This means the GEV fit was sub-optimal and the FAP estimate may not be reliable. Hence terminating with FAP = 1.0")
+            return (c(1.0, summary(fitEVD)$AIC))
         }
     }
 
