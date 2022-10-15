@@ -119,6 +119,11 @@ standardPeriodogram <- function(
     noiseStd <- unlist(yt[3])
     noiseIQR <- unlist(yt[4])
 
+    # Special case (TCF fails if absolutely no noise -- so add a very small amount of noise just to prevent any errors).
+    if (noiseType == 0 && algo == "TCF") {
+        y <- y + 10^-10 * rnorm(length(y))
+    }
+
     # Create frequency grid.
     freqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo)
 
@@ -205,7 +210,7 @@ standardPeriodogram <- function(
             pergram <- output$outpow
         }
 
-        plot(t, y, type='l', main=sprintf("period: %.3f days, depth: %.6f (%), duration: %.3f (hrs)\n(%s) noise std dev: %f, noise IQR: %f", period, depth, period * 24 * duration, if (noiseType == 1) "gaussian" else "autoregressive", noiseStd, noiseIQR), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)')
+        plot(t, y, type='l', main=sprintf("period: %.3f days, depth: %.6f (pct), duration: %.3f (hrs)\n(%s) noise std dev: %f, noise IQR: %f", period, depth, period * 24 * duration, if (noiseType == 1) "gaussian" else "autoregressive", noiseStd, noiseIQR), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)')
         acfEstimate <- acf(y, plot = FALSE)
         lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
         plot(acfEstimate, main=sprintf("P(Ljung-Box) = %s, lag-1 acf = %s", lJStats[3], acfEstimate$acf[[2]]), cex=2)
