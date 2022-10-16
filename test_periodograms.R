@@ -23,7 +23,7 @@ getLightCurve <- function(
             period > 0
             depth >= 0
             depth <= 100
-            duration >= 1  # Note that 0 < duration <= 1 will give error.
+            duration >= 0
             ntransits >= 0
         })   
     }
@@ -53,8 +53,10 @@ getLightCurve <- function(
     for (n in 1:ntransits) {
         y <- append(y, seq(from = 1, to = inTransitValue, length.out = res))  # Decrement from 1 to depth.
         endt <- as.integer(inTransitTime*res) - 1
-        for (j in 1:endt) {
-            y <- append(y, inTransitValue)
+        if (endt != 0) {  # Special case when 0 < duration < 1 (assuming res=2).
+            for (j in 1:endt) {
+                y <- append(y, inTransitValue)
+            }
         }
         y <- append(y, seq(from = inTransitValue, to = 1, length.out = res))  # Increment from depth to 1.
         constt <- as.integer(constTime*res) + 1
@@ -63,6 +65,8 @@ getLightCurve <- function(
         }
     }
     y <- append(y, 1)
+    print(length(y))
+    print(length(t))
 
     if (noiseType == 1) {
         set.seed(1)
