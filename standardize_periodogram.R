@@ -94,9 +94,9 @@ computeScatter <- function(
 }
 
 standardPeriodogram <- function(
-    period,
-    depth,
-    duration,
+    period,  # in days.
+    depth,  # in %
+    duration,  # in hours.
     noiseType = 0,  # 0 for no noise, 1 for white Gaussian noise, and 2 for autoregressive noise (if 2, the ARMA model is internally fixed; also no differencing is used, so it assumes the time-series is stationary or already differenced.)
     algo = "BLS",  # or "TCF"
     windowLength=100,
@@ -210,7 +210,7 @@ standardPeriodogram <- function(
             pergram <- output$outpow
         }
 
-        plot(t, y, type='l', main=sprintf("period: %.3f days, depth: %.6f (pct), duration: %.3f (hrs)\n(%s) noise std dev: %f, noise IQR: %f", period, depth, period * 24 * duration, if (noiseType == 1) "gaussian" else "autoregressive", noiseStd, noiseIQR), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)')
+        plot(t, y, type='l', main=sprintf("period: %.3f days, depth: %.6f (pct), duration: %.3f (hrs)\n(%s) noise std dev: %f, noise IQR: %f", period, depth, duration, if (noiseType == 1) "gaussian" else "autoregressive", noiseStd, noiseIQR), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)')
         acfEstimate <- acf(y, plot = FALSE)
         lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
         plot(acfEstimate, main=sprintf("P(Ljung-Box) = %s, lag-1 acf = %s", lJStats[3], acfEstimate$acf[[2]]), cex=2)

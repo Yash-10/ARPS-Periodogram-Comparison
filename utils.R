@@ -45,7 +45,7 @@ getFreqGridToTest <- function(
 
     if (useOptimalFreqSampling) {
         if (algo == "BLS") {
-            q = duration  # single transit duration / light curve duration.
+            q = duration / (period * 24)  # single transit duration / period, both in same units.
         }
         else if (algo == "TCF") {  # TODO: Confirm duty cycle scaling by res.
             # Duty cycle for TCF taken from Caceres, 2019 methodology paper: https://iopscience.iop.org/article/10.3847/1538-3881/ab26b8

@@ -65,9 +65,9 @@ calculateFAP <- function(
 }
 
 evd <- function(
-    period,
-    depth,
-    duration,
+    period,  # in days.
+    depth,  # in %
+    duration,  # in hours.
     L=500,  # No. of distinct frequency bins.
     R=500,  # No. of bootstrap resamples of the original time series.
     noiseType=1,  # Noise model present in y. Either 1 (white gaussian noise) or 2 (autoregressive noise).
@@ -260,8 +260,7 @@ evd <- function(
     # Suveges, 2014 suggests looking at the diagnostic plots before extrapolating to full periodogram, but that is cumbersome for large-scale simulations. Hence, this is a simple way to overcome manual fit quality inspection.
     if (checkConditions) {
         if (result$p.value < alpha) {  # Reject null hypothesis: the maxima sample is in the favor of alternate hypothesis (that the sample comes from a different distribution than GEV).
-            warning("Anderson-Darling test failed while fitting GEV to the sample periodogram maxima. This means the GEV fit was sub-optimal and the FAP estimate may not be reliable. Hence terminating with FAP = 1.0")
-            return (c(1.0, summary(fitEVD)$AIC))
+            warning("Anderson-Darling test failed while fitting GEV to the sample periodogram maxima. This means the GEV fit was sub-optimal and the FAP estimate may not be reliable.")
         }
     }
 
@@ -348,43 +347,6 @@ validate1_evd <- function(  # Checks whether the values in the bootstrapped resa
     }
 }
 
-# plotSensitivtyPeriods <- function(
-#     periods
-# ) {
-#     ldepths <- c()
-#     for (period in periods) {
-#         d <- findLimitingDepth(period=period, duration=1/36, ofac=1, ntransits=10, noiseType=1)
-#         ldepths <- append(ldepths, d)
-#     }
-#     plot(periods, ldepths, type='l')
-# }
-
-# plotSensitivtyDurations <- function(
-#     durations,
-#     algo="BLS"
-# ) {
-#     ldepths <- c()
-#     for (duration in durations) {
-#         d <- findLimitingDepth(period=3, duration=duration, algo=algo, ofac=1, ntransits=10, noiseType=1, gaussStd=1e-4)
-#         ldepths <- append(ldepths, d)
-#     }
-#     # plot(durations, ldepths, type='l')
-#     return (ldepths);
-# }
-
-# plotSensitivtyARnoiseLevel <- function(
-#     ARMA_coeffs,  # list of {ar, ma} coefficients.
-#     algo="BLS"
-# ) {
-#     ldepths <- c()
-#     for (ARMA_coeff in ARMA_coeffs) {
-#         ar <- ARMA_coeff[1]
-#         ma <- ARMA_coeff[2]
-#         d <- findLimitingDepth(period=3, duration=1/36, algo=algo, ofac=1, ntransits=10, noiseType=2, ar=ar, ma=ma, order=c(1, 0, 1))  # TODO: Also allow order as argument to function instead of harcoding.
-#         ldepths <- append(ldepths, d)
-#     }
-#     return (ldepths);
-# }
 
 findbestLandR <- function(  # Finds the optimal L and R values via grid search. It uses the AIC for finding the best {L, R} pair.
     Ls,
@@ -415,7 +377,7 @@ findbestLandR <- function(  # Finds the optimal L and R values via grid search. 
 smallestPlanetDetectableTest <- function(  # This function returns the smallest planet detectable (in terms of transit depth) using the FAP criterion.
     period,  # a single period, in days.
     depths,  # vector of depths for which FAP needs to be calculated, each in %. An example: c(0.1, 0.08, 0.06, 0.04, 0.02, 0.015, 0.012, 0.01, 0.005)
-    duration,  # a singel duration, in hours.
+    duration,  # a single duration, in hours.
     ...  # Arguments passed to evd() internally.
 ) {
     faps <- c()
@@ -426,7 +388,7 @@ smallestPlanetDetectableTest <- function(  # This function returns the smallest 
         faps <- append(faps, fap)
     }
 
-    png(filename=sprintf("%sdays_%shours.png", period, duration * period * 24))
+    png(filename=sprintf("%sdays_%shours.png", period, duration))
     plot(depths*1e4, faps, xlab='Depth (ppm)', ylab='FAP', type='o', ylim=c(1e-7, 0.02), log='y')  # Upper limit is set to 0.02 which is slightly larger than 0.01, the threshold FAP.
     axis(1, at=1:length(depths), labels=depths*1e4)
     # TODO: Decide what threshold FAP to use for the autoregressive case. Or maybe keep it same irrespective of the noise.
@@ -463,33 +425,16 @@ periodDurationDepthTest <- function(
     ofac=1
 ) {
     periodDurations <- list()
-    periodDurations[[1]] <- c(2, 1/24)  # 2 days, 2 hrs
-    periodDurations[[2]] <- c(3, 1/36)  # 3 days, 2 hrs
-    periodDurations[[3]] <- c(4, 1/48)  # 4 days, 2 hrs
-    periodDurations[[4]] <- c(5, 1/60)  # 5 days, 2 hrs
+    periodDurations[[1]] <- c(2, 2)  # 2 days, 2 hrs
+    periodDurations[[2]] <- c(3, 2)  # 3 days, 2 hrs
+    periodDurations[[3]] <- c(4, 2)  # 4 days, 2 hrs
+    periodDurations[[4]] <- c(5, 2)  # 5 days, 2 hrs
 
     for (periodDuration in periodDurations) {
         period <- periodDuration[1]
         duration <- periodDuration[2]
         smallestPlanetDetectableTest(period, depths, duration, algo=algo, ofac=ofac)
     }
-}
-
-temp <- function(ofac=1) {
-    period<-3
-    duration<-1/36
-    depth<-0.01
-    noiseType<-1
-    ntransits<-10
-    freqStep <- (freqMax - freqMin) / (nfreq * ofac)
-    freqGrid <- seq(from = freqMin, to = freqMax, by = freqStep)
-
-    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits)
-    y <- unlist(yt[1])
-    t <- unlist(yt[2])
-    out<-bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=perMax, nper=length(freqGrid))
-    plot(out$periodsTested, out$spec, type='l')
-    return (out);
 }
 
 ################# Questions not yet understood by me ##################

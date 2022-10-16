@@ -24,16 +24,14 @@ getLightCurve <- function(
             depth >= 0
             depth <= 100
             duration > 0
-            duration <= 1
             ntransits >= 0
         })   
     }
 
     # Create a simulated planet transit time series based on period, depth, and transit duration.
     inTransitValue = 1 - (depth / 100) * 1
-    # TODO: do not do round() below since then 1/48 and 1/36 for a 3-day period is the same, which MUST NOT be. UPDATE: STILL does not work.
-    inTransitTime = duration * period * 24  # inTransitTime is the actual absolute in-transit time (in hours).
-    constTime = (period * 24 - 2 - inTransitTime)
+    inTransitTime = duration  # inTransitTime is the actual absolute in-transit time (in hours).
+    constTime = (period * 24 - 2/res - inTransitTime)
 
     if (checkConditions) {
         stopifnot(exprs = {
@@ -118,7 +116,7 @@ getLightCurve <- function(
 getStandardPeriodogram <- function(
     period,  # What period (in days) do you want to have in your light curve, will be a single value. eg: 1/3/5/7/9.
     depth,  # What depth (in % of the star's presumed constant level which is 1) do you want to have in your light curve, will be a vector. eg: 0.01/0.05/0.1/0.15/0.2.
-    duration,  # What transit duration (as a fraction of the period) do you want to have in your light curve. eg: 1/24.
+    duration,  # What transit duration (in hours) do you want to have in your light curve. eg: 1/24.
     # Note: The definition of transit duration used in the code is how many points there are at the in-transit level whereas in astronomy it is, how many points are there before you reach the constant value again taking into account points in going from 1 --> inTransitValue.
     noiseType=0,  # 1 --> Gaussian noise, 2 --> Autoregressive noise. If autoregressive noise, (1, 0, 1) model is used. To change it, need to change the source code.
     ntransits=10,  # No. of transits in the whole time series. Note: It must be >=3, otherwise BLS/TCF matching filter periodograms might not work.
