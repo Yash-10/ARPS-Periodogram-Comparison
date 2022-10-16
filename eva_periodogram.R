@@ -171,7 +171,7 @@ evd <- function(
     stopifnot(exprs={
         all(freqGrid <= res / 2)  # No frequency must be greater than the Nyquist frequency.
         length(freqGrid) >= K * L  # K*L is ideally going to be less than N, otherwise the bootstrap has no benefit in terms of compuation time.
-        length(freqGrid) / (K * L) <= length(t) / 2  # This condition is mentioned in https://ui.adsabs.harvard.edu/abs/2012ada..confE..16S.
+        # length(freqGrid) / (K * L) <= length(t) / 2  # This condition is mentioned in https://ui.adsabs.harvard.edu/abs/2012ada..confE..16S.
     })
 
     print(sprintf("Max frequency: %f, Min frequency: %f", max(freqGrid), min(freqGrid)))
