@@ -23,7 +23,7 @@ getLightCurve <- function(
             period > 0
             depth >= 0
             depth <= 100
-            duration > 0
+            duration >= 1  # Note that 0 < duration <= 1 will give error.
             ntransits >= 0
         })   
     }
