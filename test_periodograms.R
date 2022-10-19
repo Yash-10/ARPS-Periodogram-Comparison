@@ -65,8 +65,6 @@ getLightCurve <- function(
         }
     }
     y <- append(y, 1)
-    print(length(y))
-    print(length(t))
 
     if (noiseType == 1) {
         set.seed(1)
