@@ -31,7 +31,8 @@ getLightCurve <- function(
     # Create a simulated planet transit time series based on period, depth, and transit duration.
     inTransitValue = 1 - (depth / 100) * 1
     inTransitTime = duration  # inTransitTime is the actual absolute in-transit time (in hours).
-    constTime = (period * 24 - 2/res - inTransitTime)
+    constTime = (period * 24 - 2 / res - inTransitTime)
+    print(constTime)
 
     if (checkConditions) {
         stopifnot(exprs = {
@@ -48,7 +49,8 @@ getLightCurve <- function(
     t <- seq(from = 0, by = tIncrement, to = tEnd)
 
     # The deemed constant value will be 1 and the transits would be scaled with respect to 1. For eg: 1 --> 0.998 --> 1 --> 0.998 ...
-    y <- rep(1.0, each = as.integer(constTime*res)) # Start with some constant level.
+    # Note one caveat here is that if constTime * res is not an integer, this light curve simulation might fail.
+    y <- rep(1.0, each = as.integer(constTime*res))  # Start with some constant level.
 
     for (n in 1:ntransits) {
         y <- append(y, seq(from = 1, to = inTransitValue, length.out = res))  # Decrement from 1 to depth.
