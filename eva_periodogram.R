@@ -313,10 +313,17 @@ evd <- function(
     }
     else if (significanceMode == 'expected_peak') {
         if (algo == "BLS") {
-            toCheck <- output[which.min(abs(ptested - period * 24))]
+            x <- which.min(abs(ptested - period * 24))
+            # The below is done in reality, there would be differences between estimated period and actual period, hence we need to select max from an interval around the expected period.
+            indsLow <- x - 100
+            indsUp <- x + 100
+            toCheck <- max(output[indsLow:indsUp])
         }
         else if (algo == "TCF") {
-            toCheck <- output[which.min(abs(periodsToTry - period * 24))]
+            x <- which.min(abs(periodsToTry - period * 24))
+            indsLow <- x - 100
+            indsUp <- x + 100
+            toCheck <- max(output[indsLow:indsUp])
         }
     }
     print("Calculating FAP...")

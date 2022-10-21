@@ -297,6 +297,11 @@ standardizeAPeriodogram <- function(
         return (normalizedPeriodogram);
     }
     else {  # mode == 'detrend'
-        return (periodogramTrendRemoved);
+        if (min(periodogramTrendRemoved) < 0) {
+            return (periodogramTrendRemoved + abs(min(periodogramTrendRemoved)) + .Machine$double.eps)
+        }
+        else {
+            return (periodogramTrendRemoved);
+        }
     }
 }

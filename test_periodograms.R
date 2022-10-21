@@ -101,6 +101,7 @@ getLightCurve <- function(
     print(noquote(paste("Period (hours) = ", sprintf("%.3f", period * 24))))
     print(noquote(paste("Depth = ", sprintf("%.6f",  depth))))
     print(noquote(paste("Transit duration (hours) = ", sprintf("%.3f", inTransitTime))))
+    print("==========================================")
 
     return (list(y, t, noiseStd, noiseIQR))
 
