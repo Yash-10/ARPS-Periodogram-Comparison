@@ -288,6 +288,7 @@ evd <- function(
         else {
             output <- output$spec
         }
+        periodAtMaxOutput <- ptested[which.max(output)]
     }
     else if (algo == "TCF") {
         fstep <- (max(freqGrid) - min(freqGrid)) / length(freqGrid)
@@ -301,6 +302,7 @@ evd <- function(
         else {
             output <- output$outpow
         }
+        periodAtMaxOutput <- periodsToTry[which.max(output)]
     }
 
     print("Calculating return level...")
@@ -327,7 +329,13 @@ evd <- function(
         }
     }
     print("Calculating FAP...")
-    fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), toCheck)
+    if (periodAtMaxOutput < period * 24 - 3 || periodAtMaxOutput > period * 24 + 3) {  # We provide an errorbar of 3 hours for the estimated period.
+        warning("Periodogram peak is far away from the actual period which means the periodogram is fitting the noise. FAP = 1 will be returned.")
+        fap <- 1.0
+    }
+    else {
+        fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), toCheck)
+    }
     print(sprintf("FAP = %.10f", fap))
 
     return (c(fap, summary(fitEVD)$AIC)); # Note: c() can be used since all the values returned are of same type. If ever they are of different types, use list() instead.
