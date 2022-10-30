@@ -82,8 +82,8 @@ getFreqGridToTest <- function(
 #   vec[k]
 # }
 
-freqdivideFreqGrid <- function(freqGrid, L, K) {
-    set.seed(1)  # Set seed for reproducibility.
+freqdivideFreqGrid <- function(freqGrid, L, K, seedValue=1) {
+    set.seed(seedValue)  # Set seed for reproducibility.
 
     if ((K %% 2) == 0) {
         safeDist <- 1 + K/2  # 1 is added just to be more safe at the edges of the frequency grid. This is just a hackery.

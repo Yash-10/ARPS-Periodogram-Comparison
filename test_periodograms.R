@@ -16,7 +16,8 @@ getLightCurve <- function(
     ar=0.2,
     ma=0.2,
     order=c(1, 0, 1),  # ARMA, no differencing.
-    checkConditions=TRUE  # Whether to perform small unit tests within the code to ensure the output is as expected. Recommended: Set to TRUE for almost all cases, but added this option so that `uniroot` does not throw error when finding the limiting depth - see below functions.
+    checkConditions=TRUE,  # Whether to perform small unit tests within the code to ensure the output is as expected. Recommended: Set to TRUE for almost all cases, but added this option so that `uniroot` does not throw error when finding the limiting depth - see below functions.
+    seedValue=1
 ) {
     if (checkConditions) {
         stopifnot(exprs = {
@@ -68,14 +69,14 @@ getLightCurve <- function(
     y <- append(y, 1)
 
     if (noiseType == 1) {
-        set.seed(1)
+        set.seed(seedValue)
         noise <- rnorm(length(y), mean = 0, sd = gaussStd)
         y <- y + noise  # 0.01% Gaussian noise.
         noiseStd <- sd(noise)
         noiseIQR <- IQR(noise)
     }
     else if (noiseType == 2) {
-        set.seed(1)
+        set.seed(seedValue)
         # Note that autoregresive noise has been scaled by `gaussStd` so that the range of values in both Gaussian and autoregressive case look similar.
         # We can as well remove that scaling, but using it allows us to compare Gaussian and autoregressive cases much easier since then the only difference is that Gaussian is uncorrelated and autoregressive is correlated noise. And we don't need to worry about autoregressive and Gaussian noises being on different scales.
         autoRegNoise <- arima.sim(list(order = c(3,0,3), ar = c(0.2,0.3,0.2), ma=c(0.2,0.2,0.3)), n = length(y)) * gaussStd  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
@@ -104,17 +105,6 @@ getLightCurve <- function(
     print("==========================================")
 
     return (list(y, t, noiseStd, noiseIQR))
-
-    # # Add noise to time series, if any.
-    # if (noiseType == 1) {
-    #     set.seed(1)
-    #     y <- y + 0.3 * rnorm(length(y))  # TODO: Remove scaling and incorporate it in stddev?
-    # }
-    # else if (noiseType == 2) {
-    #     set.seed(1)
-    #     autoRegNoise <- arima.sim(model = list(order=c(1, 0, 1), ar=0.2, ma=0.2), n = length(y))  # It has only AR and MA components, no differencing component. So it is ARMA and not ARIMA. Note: Keep ar and ma < 0.5.
-    #     y <- y + autoRegNoise
-    # }
 }
 
 getStandardPeriodogram <- function(

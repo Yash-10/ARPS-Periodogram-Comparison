@@ -89,8 +89,9 @@ evd <- function(
     res=2,  # Resolution for creating the time series. Refer getLightCurve from test_periodogram.R
     mode='detrend',  # Standardization mode: either detrend_normalize or detrend, see the function `standardizeAPeriodogram`. Only used if useStandardization=TRUE.
     checkConditions=TRUE,  # Mostly passed to light curve generation code. Also used in ad.test p-value check in this function.
-    significanceMode='max'  # This tells whose significance (in terms of FAP) should be reported. 'max' means report significance of max(output), where output is the original periodogram (note output can be detrended/standardized based on `useStandardization` and `mode`).
+    significanceMode='max',  # This tells whose significance (in terms of FAP) should be reported. 'max' means report significance of max(output), where output is the original periodogram (note output can be detrended/standardized based on `useStandardization` and `mode`).
     # (cont...) Other option is 'expected_peak' which tells to calculate significance of not the maximum power but the power corresponding to the expected period. 'expected_peak' option can only be used in simulations.
+    seedValue=1
 ) {
     # L, R, noiseType, ntransits must be integers.
     stopifnot(exprs={
@@ -111,7 +112,7 @@ evd <- function(
     # TODO: We need to do some test by varying L and R to see which works better for each case?
 
     # Generate light curve using the parameters.
-    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, res=res, checkConditions=checkConditions)
+    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, res=res, checkConditions=checkConditions, seedValue=seedValue)
     y <- unlist(yt[1])
     t <- unlist(yt[2])
 
@@ -145,7 +146,7 @@ evd <- function(
 
     # bootTS <- replicate(R, sample(y, length(y), replace=TRUE))
     # bootTS <- aperm(bootTS)  # This just permutes the dimension of bootTS - rows become columns and columns become rows - just done for easier indexing further in the code.
-    set.seed(1)
+    set.seed(seedValue)
     bootTS <- boot(y, statistic=boot_stat, R=R)$t
 
     # Note: The below commented out code can be used to test if the bootstrap resampling suggests the data is white noise or not.
@@ -180,7 +181,7 @@ evd <- function(
     # Note that from Suveges paper, the reason for doing block maxima is: "The principal goal is to decrease the computational load due to a bootstrap. At the same time, the reduced frequency set should reflect the fundamental characteristics of a full periodogram: ..."
     maxima_R <- c()
     for (j in 1:R) {
-        KLfreqs <- freqdivideFreqGrid(freqGrid, L, K)
+        KLfreqs <- freqdivideFreqGrid(freqGrid, L, K, seedValue=seedValue)
 
         if (any(is.na(KLfreqs))) {
             stop("Atleast one frequency in the subset grid is NaN!")

@@ -110,7 +110,8 @@ standardPeriodogram <- function(
     ma=0.2,
     order=c(1, 0, 1),
     L=500, R=500,
-    useOptimalFreqSampling=FALSE
+    useOptimalFreqSampling=FALSE,
+    seedValue=1
 ){
     # Generate light curve using the parameters.
     yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
@@ -183,13 +184,15 @@ standardPeriodogram <- function(
 
     if (showFAP) {
         # Call extreme value analysis code.
-        result <- evd(period, depth, duration, noiseType=noiseType, algo=algo, ofac=ofac, L=L, R=R, res=res, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
+        result <- evd(period, depth, duration, noiseType=noiseType, algo=algo, ofac=ofac, L=L, R=R, res=res, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, seedValue=seedValue)
         print(sprintf("FAP = %.10f", result[1]))
         fap <- result[1]
     }
 
-    if (plot) {  # TODO: For plotting, there is a lot of repetition, remove and factor it out.
+    if (plot) {
         dev.new(width=20, height=10)
+
+        par("mar" = c(5, 6, 4, 2))
 
         cexVal = 1.7
         mat1 <- matrix(c(
@@ -210,22 +213,22 @@ standardPeriodogram <- function(
             pergram <- output$outpow
         }
 
-        plot(t, y, type='l', main=sprintf("period: %.3f days, depth: %.6f (pct), duration: %.3f (hrs)\n(%s) noise std dev: %f, noise IQR: %f", period, depth, duration, if (noiseType == 1) "gaussian" else "autoregressive", noiseStd, noiseIQR), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)')
+        plot(t, y, type='l', main=sprintf("Period: %.1f days, depth: %.3f (pct), duration: %.1f (hrs)", period, depth, duration), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)', ylab='normalized flux')
         acfEstimate <- acf(y, plot = FALSE)
         lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
         plot(acfEstimate, main=sprintf("P(Ljung-Box) = %s, lag-1 acf = %s", lJStats[3], acfEstimate$acf[[2]]), cex=2)
 
-        plot(cobsxy50$x, pergram, type = 'l', main=sprintf("Original %s periodogram and cobs fit\nlambdaTrend=%d, ofac=%d", algo, lambdaTrend, ofac), log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+        plot(cobsxy50$x, pergram, type = 'l', main=sprintf("Original %s periodogram", algo), log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
         lines(cobsxy50$x, cobsxy50$fitted, type = 'l', col='red')
-        lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
-        lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
+        # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
+        # lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
         rug(cobsxy50$knots)
         legend(x = "topleft", lty = 1, text.font = 6, 
-            col= c("red", "cyan", "magenta"), text.col = "black", 
-            legend=c("trend fit", "tau=0.9", "tau=0.99")
+            col= c("red"), text.col = "black", 
+            legend=c("trend fit")
         )
 
-        plot(cobsxy50$x, normalizedPeriodogram, type = 'l', main=sprintf('Standardized %s periodogram\n(detrended and local scatter removed)', algo), log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+        plot(cobsxy50$x, normalizedPeriodogram, type = 'l', main=sprintf('Standardized %s periodogram', algo), log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
         plot.new()  # Just show an empty plot.
 
@@ -243,10 +246,10 @@ standardPeriodogram <- function(
         KurtosisBefore <- kurtosis(pergram)
 
         if (showFAP) {
-            plot(hist.data$count, type='h', log='y', main=sprintf('Original %s periodogram histogram:\nskewness: %.3f, kurtosis: %.3f, FAP: %s', algo, SkewnessBefore, KurtosisBefore, formatC(fap, format = "e", digits = 5)), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+            plot(hist.data$count, type='h', log='y', main=sprintf('Original %s periodogram histogram, FAP: %s', algo, formatC(fap, format = "e", digits = 5)), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
         }
         else {
-            plot(hist.data$count, type='h', log='y', main=sprintf('Original %s periodogram histogram:\nskewness: %.3f, kurtosis: %.3f', algo, SkewnessBefore, KurtosisBefore), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+            plot(hist.data$count, type='h', log='y', main=sprintf('Original %s periodogram histogram', algo, SkewnessBefore, KurtosisBefore), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
         }
         axis(1, at=1:length(hist.data$mids), labels=hist.data$mids)
 
@@ -254,7 +257,7 @@ standardPeriodogram <- function(
         KurtosisAfter <- kurtosis(normalizedPeriodogram)
 
         hist.data = hist(normalizedPeriodogram, breaks=50, plot = FALSE)
-        plot(hist.data$count, type='h', log='y', main=sprintf("Standardized %s periodogram histogram:\nskewness: %.3f, kurtosis: %.3f", algo, SkewnessAfter, KurtosisAfter), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+        plot(hist.data$count, type='h', log='y', main=sprintf("Standardized %s periodogram histogram", algo), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
         axis(1, at=1:length(hist.data$mids), labels=hist.data$mids)
     }
 }
