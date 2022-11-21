@@ -74,6 +74,12 @@ calculateSNR <- function(  # TODO: For making this more efficient, compute trend
     # return (list(periods, detrended, cobsTrend$fitted, periodogramPower))
     lowerInd <- which.max(detrended) - 100
     upperInd <- which.max(detrended) + 100
+    if (which.max(detrended) - 100 < 1) {
+        lowerInd <- 1
+    }
+    if (which.max(detrended) + 100 > length(detrended)) {
+        upperInd <- length(detrended)
+    }
     consider <- detrended[lowerInd:upperInd]
     snr <- max(consider) / IQR(consider)
     return (snr)
