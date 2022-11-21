@@ -64,6 +64,21 @@ calculateFAP <- function(
     return (calculatedFAP);
 }
 
+calculateSNR <- function(  # TODO: For making this more efficient, compute trend fit only for region around the periodogram peak - will save some time.
+    periods,  # The periods at which the periodogram is computed.
+    periodogramPower,  # This power must not be detrended since it is done internally.
+    lambdaTrend=1
+) {
+    cobsTrend <- cobs(log10(periods), periodogramPower, ic='BIC', tau=0.5, lambda=lambdaTrend)
+    detrended <- cobsTrend$resid
+    # return (list(periods, detrended, cobsTrend$fitted, periodogramPower))
+    lowerInd <- which.max(detrended) - 100
+    upperInd <- which.max(detrended) + 100
+    consider <- detrended[lowerInd:upperInd]
+    snr <- max(consider) / IQR(consider)
+    return (snr)
+}
+
 evd <- function(
     period,  # in days.
     depth,  # in %
@@ -282,7 +297,7 @@ evd <- function(
     # Compute full periodogram.
     if (algo == "BLS") {
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
-        ptested<-output$periodsTested
+        ptested <- output$periodsTested
         if (useStandardization) {
             output <- standardizeAPeriodogram(output, periodsToTry=NULL, algo="BLS", mode=mode)
         }
@@ -330,6 +345,7 @@ evd <- function(
         }
     }
     print("Calculating FAP...")
+    # Currently, the +- 3 hours error margin is chosen and fixed. No specific reason for choosing "3": we wanted to choose a value not very small such as 1 (to not penalize too much) and not very large such as 10 as well.
     if (periodAtMaxOutput < period * 24 - 3 || periodAtMaxOutput > period * 24 + 3) {  # We provide an errorbar of 3 hours for the estimated period.
         warning("Periodogram peak is far away from the actual period which means the periodogram is fitting the noise. FAP = 1 will be returned.")
         fap <- 1.0
@@ -339,7 +355,21 @@ evd <- function(
     }
     print(sprintf("FAP = %.10f", fap))
 
-    return (c(fap, summary(fitEVD)$AIC)); # Note: c() can be used since all the values returned are of same type. If ever they are of different types, use list() instead.
+    snr <- calculateSNR(ptested, output, lambdaTrend=1)
+    print(sprintf("Signal-to-noise ratio of periodogram peak = %f", snr))
+
+    if (snr < 0) {
+        score <- NA
+    }
+    else if (abs(snr) > 1.0) {
+        score <- 0.75 * fap + 0.25 * (1 / snr)
+    }
+    else {
+        score <- 0.75 * fap + 0.25 * snr
+    }
+    print(sprintf("Overall score for this periodogram peak = %f", score))
+
+    return (c(fap, summary(fitEVD)$AIC, snr)); # Note: c() can be used since all the values returned are of same type. If ever they are of different types, use list() instead.
 
     ###### Interpreting what FAP is good (from Baluev: https://academic.oup.com/mnras/article/385/3/1279/1010111):
     # (1) > Given some small critical value FAP* (usually between 10−3 and 0.1), we can claim that the candidate signal is statistically
