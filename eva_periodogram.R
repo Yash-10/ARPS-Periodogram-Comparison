@@ -369,7 +369,7 @@ evd <- function(
     }
     print(sprintf("Overall score for this periodogram peak = %f", score))
 
-    return (c(fap, summary(fitEVD)$AIC, snr)); # Note: c() can be used since all the values returned are of same type. If ever they are of different types, use list() instead.
+    return (c(score, fap, snr, summary(fitEVD)$AIC)); # Note: c() can be used since all the values returned are of same type. If ever they are of different types, use list() instead.
 
     ###### Interpreting what FAP is good (from Baluev: https://academic.oup.com/mnras/article/385/3/1279/1010111):
     # (1) > Given some small critical value FAP* (usually between 10−3 and 0.1), we can claim that the candidate signal is statistically
