@@ -355,7 +355,12 @@ evd <- function(
     }
     print(sprintf("FAP = %.10f", fap))
 
-    snr <- calculateSNR(ptested, output, lambdaTrend=1)
+    if (algo == "BLS") {
+        snr <- calculateSNR(ptested, output, lambdaTrend=1)
+    }
+    else {
+        snr <- calculateSNR(periodsToTry * res, output, lambdaTrend=1)
+    }
     print(sprintf("Signal-to-noise ratio of periodogram peak = %f", snr))
 
     if (snr < 0) {
