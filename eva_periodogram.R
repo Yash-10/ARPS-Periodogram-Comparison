@@ -369,14 +369,11 @@ evd <- function(
     }
     print(sprintf("Signal-to-noise ratio of periodogram peak = %f", snr))
 
-    if (snr < 0) {
+    if (snr < 0) {  # Ideally this will not occur because periodogram peak will mostly never be negative and IQR, by definition, cannot be negative.
         score <- NA
     }
-    else if (abs(snr) > 1.0) {
-        score <- 0.75 * fap + 0.25 * (1 / snr)
-    }
     else {
-        score <- 0.75 * fap + 0.25 * snr
+        score <- 0.75 * fap + 0.25 * (1 / snr)   # Note if 0 <= SNR < 1, then 1/snr will be > 1 and hence the score will be heavily penalized.
     }
     print(sprintf("Overall score for this periodogram peak = %f", score))
 
