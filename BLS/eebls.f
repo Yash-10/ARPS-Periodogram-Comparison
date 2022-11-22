@@ -72,7 +72,8 @@ c
       dimension y(2000),ibi(2000)
 c
       minbin = 5
-      nbmax  = 2000
+      ! The value of nbmax below has been changed from 2000 to 10000 to prevent errors with very large transits.
+      nbmax  = 10000
       if(nb.gt.nbmax) write(*,*) ' NB > NBMAX !!'
       if(nb.gt.nbmax) stop
       tot=t(n)-t(1)
