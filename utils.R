@@ -16,6 +16,11 @@ getResidForTCF <- function(
     return (ARIMA.resid);
 }
 
+foldLC <- function(y, t, period_at_which_to_fold) {
+    foldedLC <- fold_lc(y, t, period_at_which_to_fold)
+    plot(t, foldedLC)
+}
+
 getFreqGridToTest <- function(
     t,  # Observation epochs.
     period, duration,

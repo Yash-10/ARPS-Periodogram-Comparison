@@ -112,7 +112,8 @@ evd <- function(
     checkConditions=TRUE,  # Mostly passed to light curve generation code. Also used in ad.test p-value check in this function.
     significanceMode='max',  # This tells whose significance (in terms of FAP) should be reported. 'max' means report significance of max(output), where output is the original periodogram (note output can be detrended/standardized based on `useStandardization` and `mode`).
     # (cont...) Other option is 'expected_peak' which tells to calculate significance of not the maximum power but the power corresponding to the expected period. 'expected_peak' option can only be used in simulations.
-    seedValue=1
+    seedValue=1,
+    FAPSNR_mode=0  # 0 means only FAP, 1 means only SNR, and 2 means a linear combination of FAP and SNR.
 ) {
     # L, R, noiseType, ntransits must be integers.
     stopifnot(exprs={
@@ -197,6 +198,48 @@ evd <- function(
     })
 
     print(sprintf("Max frequency: %f, Min frequency: %f", max(freqGrid), min(freqGrid)))
+
+    # Compute full periodogram (to be used afterwards when using FAP (mode=0 or 2), and terminate after this only if using mode=1).
+    if (algo == "BLS") {
+        output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
+        ptested <- output$periodsTested
+        if (useStandardization) {
+            output <- standardizeAPeriodogram(output, periodsToTry=NULL, algo="BLS", mode=mode)
+        }
+        else {
+            output <- output$spec
+        }
+        periodAtMaxOutput <- ptested[which.max(output)]
+    }
+    else if (algo == "TCF") {
+        fstep <- (max(freqGrid) - min(freqGrid)) / length(freqGrid)
+        freqs <- seq(from = min(freqGrid), by = fstep, length.out = length(freqGrid))
+        periodsToTry <- 1 / freqs
+        residTCF <- getResidForTCF(y)
+        output <- tcf(residTCF, p.try = periodsToTry * res, print.output = TRUE)
+        if (useStandardization) {
+            output <- standardizeAPeriodogram(output, periodsToTry=periodsToTry, algo="TCF", mode=mode)
+        }
+        else {
+            output <- output$outpow
+        }
+        periodAtMaxOutput <- periodsToTry[which.max(output)]
+    }
+    if (algo == "BLS") {
+        snr <- calculateSNR(ptested, output, lambdaTrend=1)
+    }
+    else {
+        snr <- calculateSNR(periodsToTry * res, output, lambdaTrend=1)
+    }
+    if (snr < 0) {  # Ideally this will not occur because periodogram peak will mostly never be negative and IQR, by definition, cannot be negative.
+        print('Negative SNR, returning NA score.')
+        score <- NA
+    }
+    print(sprintf("Signal-to-noise ratio of periodogram peak = %f", snr))
+    if (FAPSNR_mode == 1){
+        score <- snr
+        return (score)
+    }
 
     # (2) Max of each partial periodogram
     # Note that from Suveges paper, the reason for doing block maxima is: "The principal goal is to decrease the computational load due to a bootstrap. At the same time, the reduced frequency set should reflect the fundamental characteristics of a full periodogram: ..."
@@ -298,34 +341,8 @@ evd <- function(
     }
 
     # (4) Extrapolation to full periodogram
+    # Note: The full periodogram was already computed towards the start of this function.
     print("Extrapolating to full periodogram...")
-
-    # Compute full periodogram.
-    if (algo == "BLS") {
-        output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
-        ptested <- output$periodsTested
-        if (useStandardization) {
-            output <- standardizeAPeriodogram(output, periodsToTry=NULL, algo="BLS", mode=mode)
-        }
-        else {
-            output <- output$spec
-        }
-        periodAtMaxOutput <- ptested[which.max(output)]
-    }
-    else if (algo == "TCF") {
-        fstep <- (max(freqGrid) - min(freqGrid)) / length(freqGrid)
-        freqs <- seq(from = min(freqGrid), by = fstep, length.out = length(freqGrid))
-        periodsToTry <- 1 / freqs
-        residTCF <- getResidForTCF(y)
-        output <- tcf(residTCF, p.try = periodsToTry * res, print.output = TRUE)
-        if (useStandardization) {
-            output <- standardizeAPeriodogram(output, periodsToTry=periodsToTry, algo="TCF", mode=mode)
-        }
-        else {
-            output <- output$outpow
-        }
-        periodAtMaxOutput <- periodsToTry[which.max(output)]
-    }
 
     print("Calculating return level...")
     returnLevel <- calculateReturnLevel(0.01, location, scale, shape, K, L, length(freqGrid))
@@ -350,34 +367,29 @@ evd <- function(
             toCheck <- max(output[indsLow:indsUp])
         }
     }
-    print("Calculating FAP...")
-    # Currently, the +- 3 hours error margin is chosen and fixed. No specific reason for choosing "3": we wanted to choose a value not very small such as 1 (to not penalize too much) and not very large such as 10 as well.
-    if (periodAtMaxOutput < period * 24 - 3 || periodAtMaxOutput > period * 24 + 3) {  # We provide an errorbar of 3 hours for the estimated period.
-        warning("Periodogram peak is far away from the actual period which means the periodogram is fitting the noise. FAP = 1 will be returned.")
-        fap <- 1.0
-    }
-    else {
-        fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), toCheck)
-    }
-    print(sprintf("FAP = %.10f", fap))
 
-    if (algo == "BLS") {
-        snr <- calculateSNR(ptested, output, lambdaTrend=1)
+    if (FAPSNR_mode == 0 || FAPSNR_mode == 2) {
+        print("Calculating FAP...")
+        # Currently, the +- 3 hours error margin is chosen and fixed. No specific reason for choosing "3": we wanted to choose a value not very small such as 1 (to not penalize too much) and not very large such as 10 as well.
+        if (periodAtMaxOutput < period * 24 - 3 || periodAtMaxOutput > period * 24 + 3) {  # We provide an errorbar of 3 hours for the estimated period.
+            warning("Periodogram peak is far away from the actual period which means the periodogram is fitting the noise. FAP = 1 will be returned.")
+            fap <- 1.0
+        }
+        else {
+            fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), toCheck)
+        }
+        print(sprintf("FAP = %.10f", fap))
     }
-    else {
-        snr <- calculateSNR(periodsToTry * res, output, lambdaTrend=1)
-    }
-    print(sprintf("Signal-to-noise ratio of periodogram peak = %f", snr))
 
-    if (snr < 0) {  # Ideally this will not occur because periodogram peak will mostly never be negative and IQR, by definition, cannot be negative.
-        score <- NA
-    }
-    else {
+    if (FAPSNR_mode == 2) {
         score <- 0.75 * fap + 0.25 * (1 / snr)   # Note if 0 <= SNR < 1, then 1/snr will be > 1 and hence the score will be heavily penalized.
+    }
+    else if (FAPSNR_mode == 0) {
+        score <- fap
     }
     print(sprintf("Overall score for this periodogram peak = %f", score))
 
-    return (c(score, fap, snr, summary(fitEVD)$AIC)); # Note: c() can be used since all the values returned are of same type. If ever they are of different types, use list() instead.
+    return (score)
 
     ###### Interpreting what FAP is good (from Baluev: https://academic.oup.com/mnras/article/385/3/1279/1010111):
     # (1) > Given some small critical value FAP* (usually between 10−3 and 0.1), we can claim that the candidate signal is statistically
