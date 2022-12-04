@@ -237,7 +237,7 @@ evd <- function(
     }
     print(sprintf("Signal-to-noise ratio of periodogram peak = %f", snr))
     if (FAPSNR_mode == 1){
-        score <- snr
+        score <- 1 / snr
         return (score)
     }
 
