@@ -1,6 +1,6 @@
 import random
 import lightkurve
-from lightkurve import LightCurve
+# from lightkurve import LightCurve
 
 
 def rand_parts(seq, n, l):
@@ -28,7 +28,7 @@ def rand_parts(seq, n, l):
     return result
 
 
-def fold_lc(lc, t, period):
-    Lc = LightCurve(flux=lc, time=t)
-    folded = Lc.fold(period=period, epoch_time=0, epoch_phase=0)
-    return folded
+# def fold_lc(lc, t, period):
+#     Lc = LightCurve(flux=lc, time=t)
+#     folded = Lc.fold(period=period, epoch_time=0, epoch_phase=0)
+#     return folded
