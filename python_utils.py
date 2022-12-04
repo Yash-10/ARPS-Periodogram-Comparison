@@ -1,5 +1,5 @@
 import random
-import lightkurve
+# import lightkurve
 # from lightkurve import LightCurve
 
 
