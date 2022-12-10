@@ -43,11 +43,6 @@ getLightCurve <- function(
         })
     }
 
-    # First generate the time epochs.
-    tIncrement <- 1 / res
-    tEnd <- constTime + ntransits * (2 + inTransitTime + constTime)
-    t <- seq(from = 0, by = tIncrement, to = tEnd)
-
     # The deemed constant value will be 1 and the transits would be scaled with respect to 1. For eg: 1 --> 0.998 --> 1 --> 0.998 ...
     # Note one caveat here is that if constTime * res is not an integer, this light curve simulation might fail.
     y <- rep(1.0, each = as.integer(constTime*res))  # Start with some constant level.
@@ -67,6 +62,10 @@ getLightCurve <- function(
         }
     }
     y <- append(y, 1)
+
+    # Generate the time epochs.
+    tIncrement <- 1 / res
+    t <- seq(from = 0, by = tIncrement, length.out = length(y))
 
     if (noiseType == 1) {
         set.seed(seedValue)
@@ -96,6 +95,8 @@ getLightCurve <- function(
             length(y) == length(t)
         })
     }
+
+    print(sprintf('Length of time series = %d', length(y)))
 
     # Print some things
     print("==== Simulated light curve parameters ====")
