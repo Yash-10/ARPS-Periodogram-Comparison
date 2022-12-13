@@ -64,27 +64,6 @@ calculateFAP <- function(
     return (calculatedFAP);
 }
 
-calculateSNR <- function(  # TODO: For making this more efficient, compute trend fit only for region around the periodogram peak - will save some time.
-    periods,  # The periods at which the periodogram is computed.
-    periodogramPower,  # This power must not be detrended since it is done internally.
-    lambdaTrend=1
-) {
-    cobsTrend <- cobs(log10(periods), periodogramPower, ic='BIC', tau=0.5, lambda=lambdaTrend)
-    detrended <- cobsTrend$resid
-    # return (list(periods, detrended, cobsTrend$fitted, periodogramPower))
-    lowerInd <- which.max(detrended) - 100
-    upperInd <- which.max(detrended) + 100
-    if (which.max(detrended) - 100 < 1) {
-        lowerInd <- 1
-    }
-    if (which.max(detrended) + 100 > length(detrended)) {
-        upperInd <- length(detrended)
-    }
-    consider <- detrended[lowerInd:upperInd]
-    snr <- max(consider) / IQR(consider)
-    return (snr)
-}
-
 evd <- function(
     period,  # in days.
     depth,  # in %
@@ -238,12 +217,12 @@ evd <- function(
     print(sprintf("Signal-to-noise ratio of periodogram peak = %f", snr))
     if (FAPSNR_mode == 1){
         score <- 1 / snr
-        return (score)
     }
 
     # (2) Max of each partial periodogram
     # Note that from Suveges paper, the reason for doing block maxima is: "The principal goal is to decrease the computational load due to a bootstrap. At the same time, the reduced frequency set should reflect the fundamental characteristics of a full periodogram: ..."
     maxima_R <- c()
+    snrPartials <- c()
     for (j in 1:R) {
         KLfreqs <- freqdivideFreqGrid(freqGrid, L, K, seedValue=seedValue)
 
@@ -265,6 +244,7 @@ evd <- function(
             else {
                 partialPeriodogram <- out$spec
             }
+            snrPartial <- calculateSNR(out$periodsTested, partialPeriodogram, lambdaTrend=1)
         }
         else if (algo == "TCF") {
             # Note: We do not need auto.arima here since the bootstrapped time series corresponds to white noise, and so ARIMA is of no use here.
@@ -280,7 +260,9 @@ evd <- function(
             else {
                 partialPeriodogram <- out$outpow
             }
+            snrPartial <- calculateSNR(pToTry * res, partialPeriodogram, lambdaTrend=1)
         }
+        snrPartials <- c(snrPartials, snrPartial)
 
         # Note: If we use oversampling, then while it increases the flexibility to choose frequencies in the frequency grid, it also has important issues as noted in https://academic.oup.com/mnras/article/388/4/1693/981666:
         # (1) "if we oversample the periodogram, the powers at the sampled frequencies are no longer independent..."
@@ -296,6 +278,9 @@ evd <- function(
         # TODO: How to choose best threshold for declustering?
         # partialPeriodogram <- decluster(partialPeriodogram, threshold = quantile(partialPeriodogram, probs=c(0.75)))
         maxima_R <- append(maxima_R, max(partialPeriodogram))
+    }
+    if (FAPSNR_mode == 1) {
+        return (c(score, mean(snrPartials), sd(snrPartials)))
     }
     print("Done calculating maxima...")
     # print(maxima_R)
@@ -389,7 +374,7 @@ evd <- function(
     }
     print(sprintf("Overall score for this periodogram peak = %f", score))
 
-    return (score)
+    return (c(score, mean(snrPartials), sd(snrPartials)))
 
     ###### Interpreting what FAP is good (from Baluev: https://academic.oup.com/mnras/article/385/3/1279/1010111):
     # (1) > Given some small critical value FAP* (usually between 10−3 and 0.1), we can claim that the candidate signal is statistically
