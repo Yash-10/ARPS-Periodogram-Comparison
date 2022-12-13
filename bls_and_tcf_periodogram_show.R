@@ -23,7 +23,7 @@ blsAndTCF <- function(
     tfreqs <- seq(from = min(tfreqGrid), by = tfstep, length.out = length(tfreqGrid))
     tperiodsToTry <- 1 / tfreqs
     tresidTCF <- getResidForTCF(y)
-    toutput <- tcf(residTCF, p.try = tperiodsToTry*res, print.output = TRUE)
+    toutput <- tcf(tresidTCF, p.try = tperiodsToTry*res, print.output = TRUE)
     # output$inper = output$inper / 2
 
     # (1) Remove trend in periodogram
@@ -64,9 +64,7 @@ blsAndTCF <- function(
         fap <- result[1]
     }
 
-    dev.new(width=20, height=10)
-
-    par("mar" = c(5, 6, 4, 2))
+    par("mar" = c(5, 6, 4, 2), cex=15)
 
     cexVal = 1.7
     mat1 <- matrix(c(
@@ -86,25 +84,39 @@ blsAndTCF <- function(
     plot(t, y, type='l', main=sprintf("Period: %.1f days, depth: %.3f (pct), duration: %.1f (hrs)", period, depth, duration), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)', ylab='normalized flux')
     acfEstimate <- acf(y, plot = FALSE)
     lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
-    plot(acfEstimate, main=sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f", lJStats[3], acfEstimate$acf[[2]]), cex=2)
+    n <- length(acfEstimate$acf)
+    plot(
+        acfEstimate$acf[2:n], main=sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f", lJStats[3], acfEstimate$acf[[2]]), cex=2, type="h", 
+        xlab="Lag",     
+        ylab="ACF", 
+        ylim=c(-0.2,0.2), # this sets the y scale to -0.2 to 0.2
+        las=1,
+        xaxt="n"
+    )
+    abline(h=0)
+    # Add labels to the x-axis
+    x <- c(1:n)
+    y <- c(1:n)
+    axis(1, at=x, labels=y)
 
-    plot(bcobsxy50$x, bpergram, type = 'l', main="Original BLS periodogram", log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+    plot(bcobsxy50$x, bpergram, type = 'l', main="BLS periodogram", log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
     lines(bcobsxy50$x, bcobsxy50$fitted, type = 'l', col='red')
     # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
     # lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
     rug(bcobsxy50$knots)
-    legend(x = "topleft", lty = 1, text.font = 6, 
+    legend("topleft", lty = 1, 
         col= c("red"), text.col = "black", 
-        legend=c("trend fit")
+        legend=c("trend fit"), bty="n"
     )
-    plot(tcobsxy50$x, tpergram, type = 'l', main="Original TCF periodogram", log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+    text(100, 100, "Phase-folded light curve", cex=1.2)
+    plot(tcobsxy50$x, tpergram, type = 'l', main="TCF periodogram", log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
     lines(tcobsxy50$x, tcobsxy50$fitted, type = 'l', col='red')
     # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
     # lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
     rug(tcobsxy50$knots)
-    legend(x = "topleft", lty = 1, text.font = 6, 
+    legend("topleft", lty = 1, 
         col= c("red"), text.col = "black", 
-        legend=c("trend fit")
+        legend=c("trend fit"), bty="n"
     )
 
     plot.new()  # Just show an empty plot.
@@ -135,15 +147,18 @@ blsAndTCF <- function(
     tKurtosisBefore <- kurtosis(tpergram)
 
     if (showFAP) {
-        plot(bhist.data$count, type='h', log='y', main=sprintf('Original BLS periodogram histogram, FAP: %s', formatC(fap, format = "e", digits = 5)), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+        plot(bhist.data$count, type='h', log='y', main=sprintf('BLS periodogram histogram, FAP: %s', formatC(fap, format = "e", digits = 5)), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
         axis(1, at=1:length(bhist.data$mids), labels=bhist.data$mids)
-        plot(thist.data$count, type='h', log='y', main=sprintf('Original TCF periodogram histogram, FAP: %s', formatC(fap, format = "e", digits = 5)), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+        plot(thist.data$count, type='h', log='y', main=sprintf('TCF periodogram histogram, FAP: %s', formatC(fap, format = "e", digits = 5)), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
         axis(1, at=1:length(thist.data$mids), labels=thist.data$mids)
     }
     else {
-        plot(bhist.data$count, type='h', log='y', main=sprintf('Original BLS periodogram histogram'), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+        plot(bhist.data$count, type='h', log='y', main=sprintf('BLS periodogram histogram'), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
         axis(1, at=1:length(bhist.data$mids), labels=bhist.data$mids)
-        plot(thist.data$count, type='h', log='y', main=sprintf('Original TCF periodogram histogram'), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+        plot(thist.data$count, type='h', log='y', main=sprintf('TCF periodogram histogram'), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
         axis(1, at=1:length(thist.data$mids), labels=thist.data$mids)
     }
+
+    print(calculateSNR(tperiodsToTry * res, tpergram))
+    print(calculateSNR(boutput$periodsTested, bpergram))
 }

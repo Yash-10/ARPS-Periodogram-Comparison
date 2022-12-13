@@ -13,13 +13,20 @@ getResidForTCF <- function(
     ARIMA.fit = auto.arima(diff(y), stepwise=FALSE, approximation=FALSE, seasonal=FALSE, max.p=max.p, max.q=max.q, max.d=max.d) #leave d as 0. 
     # Simple statistics of ARIMA residuals 
     ARIMA.resid = residuals(ARIMA.fit)
-    return (ARIMA.resid);
+    return (ARIMA.resid)
 }
 
-# foldLC <- function(y, t, period_at_which_to_fold) {
-#     foldedLC <- fold_lc(y, t, period_at_which_to_fold)
-#     plot(t, foldedLC)
-# }
+plot_folded_lc <- function(bestper, harmonic=1, phase_offset=0, info=T, depth=NA, p_se =F)
+{  
+    TCF.fold.Phase = (lc[,1] - min(lc[,1], na.rm=TRUE)) %% bestper / bestper
+    Range_lc = 1.3*diff(range(lc[,2], na.rm=TRUE)) + min(lc[,2], na.rm=TRUE)
+    Text0.pos = 1.35*diff(range(lc[,2], na.rm=TRUE)) + min(lc[,2], na.rm=TRUE)
+    plot(TCF.fold.Phase, lc[,2], xlab = "Phase", ylab ="Normalized Flux", cex.axis=1.0, cex.lab=1.2,
+        cex = 0.5, pch = 20, col="#00000080", ylim=c(min(lc[,2], na.rm=TRUE), Range_lc), xaxs='i')
+    axis(1,at=seq(from=0, to=1, by=.1), labels = F, tcl=0.25)
+    axis(1,at=seq(from=0, to=1, by=.2), labels = F, tcl=0.5)
+    text(0.5, Text0.pos, "Phase-folded light curve", pos=1, cex=1.2)
+}
 
 getFreqGridToTest <- function(
     t,  # Observation epochs.
@@ -71,6 +78,27 @@ getFreqGridToTest <- function(
     print(sprintf("No. of frequencies in grid: %f", length(freqGrid)))
 
     return (freqGrid);
+}
+
+calculateSNR <- function(  # TODO: For making this more efficient, compute trend fit only for region around the periodogram peak - will save some time.
+    periods,  # The periods at which the periodogram is computed.
+    periodogramPower,  # This power must not be detrended since it is done internally.
+    lambdaTrend=1
+) {
+    cobsTrend <- cobs(log10(periods), periodogramPower, ic='BIC', tau=0.5, lambda=lambdaTrend)
+    detrended <- cobsTrend$resid
+    # return (list(periods, detrended, cobsTrend$fitted, periodogramPower))
+    lowerInd <- which.max(detrended) - 100
+    upperInd <- which.max(detrended) + 100
+    if (which.max(detrended) - 100 < 1) {
+        lowerInd <- 1
+    }
+    if (which.max(detrended) + 100 > length(detrended)) {
+        upperInd <- length(detrended)
+    }
+    consider <- detrended[lowerInd:upperInd]
+    snr <- max(consider) / IQR(consider)
+    return (snr)
 }
 
 # divide <- function(vec, n, min_spacing = 1) {  # Below approach to ensure the selected L frequencies are spaced by atleast the oversampling factor is taken from https://stackoverflow.com/a/66036847:
