@@ -205,10 +205,10 @@ evd <- function(
         periodAtMaxOutput <- periodsToTry[which.max(output)]
     }
     if (algo == "BLS") {
-        snr <- calculateSNR(ptested, output, lambdaTrend=1)
+        snr <- calculateSNR(ptested, output, lambdaTrend=1, oneSideWindowLength=1500)
     }
     else {
-        snr <- calculateSNR(periodsToTry * res, output, lambdaTrend=1)
+        snr <- calculateSNR(periodsToTry * res, output, lambdaTrend=1, oneSideWindowLength=1500)
     }
     if (snr < 0) {  # Ideally this will not occur because periodogram peak will mostly never be negative and IQR, by definition, cannot be negative.
         print('Negative SNR, returning NA score.')

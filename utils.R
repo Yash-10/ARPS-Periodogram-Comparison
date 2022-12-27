@@ -83,21 +83,30 @@ getFreqGridToTest <- function(
 calculateSNR <- function(  # TODO: For making this more efficient, compute trend fit only for region around the periodogram peak - will save some time.
     periods,  # The periods at which the periodogram is computed.
     periodogramPower,  # This power must not be detrended since it is done internally.
-    lambdaTrend=1
+    lambdaTrend=1,
+    oneSideWindowLength=1500  # NOTE: This is one side, the actual window length will be 2*oneSideWindowLength.
 ) {
     cobsTrend <- cobs(log10(periods), periodogramPower, ic='BIC', tau=0.5, lambda=lambdaTrend)
     detrended <- cobsTrend$resid
+
+    # Uncomment the below five lines to use standardization while SNR calculation.
+    # scatterWindowLength <- 100
+    # Scatter <- computeScatter(detrended, windowLength=scatterWindowLength)
+    # lambdaScatter <- 1
+    # cobsScatter <- cobs(periods, Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
+    # detrended <- detrended / cobsScatter$fitted
+
     # return (list(periods, detrended, cobsTrend$fitted, periodogramPower))
-    lowerInd <- which.max(detrended) - 100
-    upperInd <- which.max(detrended) + 100
-    if (which.max(detrended) - 100 < 1) {
+    lowerInd <- which.max(detrended) - oneSideWindowLength
+    upperInd <- which.max(detrended) + oneSideWindowLength
+    if (which.max(detrended) - oneSideWindowLength < 1) {
         lowerInd <- 1
     }
-    if (which.max(detrended) + 100 > length(detrended)) {
+    if (which.max(detrended) + oneSideWindowLength > length(detrended)) {
         upperInd <- length(detrended)
     }
     consider <- detrended[lowerInd:upperInd]
-    snr <- max(consider) / IQR(consider)
+    snr <- max(consider) / mad(consider)
     return (snr)
 }
 
