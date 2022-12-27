@@ -1,6 +1,7 @@
 ## Utility functions.
 library(forecast)
 library(reticulate)
+library('microbenchmark')
 
 source_python("python_utils.py")
 
@@ -108,6 +109,38 @@ calculateSNR <- function(  # TODO: For making this more efficient, compute trend
     consider <- detrended[lowerInd:upperInd]
     snr <- max(consider) / mad(consider)
     return (snr)
+}
+
+timeAnalysis <- function(
+    period, depth=0.015, duration=2, noiseType=1, ntransits=10,
+    gaussStd=1e-4, ar=0.2, ma=0.2, res=2, order=c(1, 0, 1), algo="BLS",
+    ofac=2, useOptimalFreqSampling=TRUE, times=100
+) {
+    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, res=res, checkConditions=TRUE, seedValue=42)
+    y <- unlist(yt[1])
+    t <- unlist(yt[2])
+
+    freqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo)
+
+    if (algo == "BLS") {
+        print("BLS periodogram time benchmark...")
+        microbenchmark(
+            bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid)),
+            times=times
+        )
+    }
+    else if (algo == "TCF") {
+        fstep <- (max(freqGrid) - min(freqGrid)) / length(freqGrid)
+        freqs <- seq(from = min(freqGrid), by = fstep, length.out = length(freqGrid))
+        periodsToTry <- 1 / freqs
+        print("TCF periodogram time benchmark...")
+        microbenchmark(
+            separate={
+                residTCF <- getResidForTCF(y); output <- tcf(residTCF, p.try = periodsToTry * res, print.output = TRUE)
+            },
+            times=times
+        )
+    }
 }
 
 # divide <- function(vec, n, min_spacing = 1) {  # Below approach to ensure the selected L frequencies are spaced by atleast the oversampling factor is taken from https://stackoverflow.com/a/66036847:
