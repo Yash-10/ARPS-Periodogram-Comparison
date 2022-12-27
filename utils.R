@@ -133,11 +133,10 @@ timeAnalysis <- function(
         fstep <- (max(freqGrid) - min(freqGrid)) / length(freqGrid)
         freqs <- seq(from = min(freqGrid), by = fstep, length.out = length(freqGrid))
         periodsToTry <- 1 / freqs
+        residTCF <- getResidForTCF(y)
         print("TCF periodogram time benchmark...")
         microbenchmark(
-            separate={
-                residTCF <- getResidForTCF(y); output <- tcf(residTCF, p.try = periodsToTry * res, print.output = TRUE)
-            },
+            tcf(residTCF, p.try = periodsToTry * res, print.output = FALSE),
             times=times
         )
     }
