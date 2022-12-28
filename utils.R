@@ -126,7 +126,7 @@ timeAnalysis <- function(
         print("BLS periodogram time benchmark...")
         microbenchmark(
             bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid)),
-            times=times
+            times=times, unit='s'
         )
     }
     else if (algo == "TCF") {
@@ -137,7 +137,7 @@ timeAnalysis <- function(
         print("TCF periodogram time benchmark...")
         microbenchmark(
             tcf(residTCF, p.try = periodsToTry * res, print.output = FALSE),
-            times=times
+            times=times, unit='s'
         )
     }
 }
