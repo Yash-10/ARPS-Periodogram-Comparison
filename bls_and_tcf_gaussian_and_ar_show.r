@@ -155,6 +155,7 @@ blsAndTCF <- function(
 
     plot(gt, gy, type='l', main=sprintf("Period: %.1f days, depth: %.3f (pct), duration: %.1f hrs", period, depth, duration), cex.main=cexVal, cex.lab=2.1, cex.axis=2.0, xlab='time (hrs)', ylab='normalized flux', font.main = 1)
     text(400, 1.0003, "Gaussian", cex=2.0, col='#3182bd')
+    # mtext("Gaussian", side=2)
     gacfEstimate <- acf(gy, plot = FALSE)
     glJStats <- Box.test(gy, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
     gn <- length(gacfEstimate$acf)
@@ -184,7 +185,7 @@ blsAndTCF <- function(
         col= c("red"), text.col = "black", 
         legend=c("trend fit"), bty="n", cex=2.0, pt.cex = 1
     )
-    text(10, 5e-5, sprintf("SNR = %.2f, FAP = %.2e", calculateSNR(gboutput$periodsTested, gbpergram), gfapBLS), cex=2.0)
+    text(11.5, 5e-5, sprintf("SNR = %.2f, FAP = %.2e", calculateSNR(gboutput$periodsTested, gbpergram), gfapBLS), cex=2.0)
     plot(gtcobsxy50$x, gtpergram, type = 'l', main="TCF periodogram", log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=2.1, cex.axis=2.0)
     lines(gtcobsxy50$x, gtcobsxy50$fitted, type = 'l', col='red')
     # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
@@ -194,7 +195,7 @@ blsAndTCF <- function(
         col= c("red"), text.col = "black", 
         legend=c("trend fit"), bty="n", cex=2.0, pt.cex = 1
     )
-    text(10.5, 425, sprintf("SNR = %.2f, FAP = %.2e", calculateSNR(gtperiodsToTry * res, gtpergram), gfapTCF), cex=2.0)
+    text(11.5, 425, sprintf("SNR = %.2f, FAP = %.2e", calculateSNR(gtperiodsToTry * res, gtpergram), gfapTCF), cex=2.0)
 
     print(calculateSNR(gtperiodsToTry * res, gtpergram))
     print(calculateSNR(gboutput$periodsTested, gbpergram))
@@ -233,7 +234,7 @@ blsAndTCF <- function(
         col= c("red"), text.col = "black", 
         legend=c("trend fit"), bty="n", cex=2.0, pt.cex = 1
     )
-    text(10, 4.4e-5, sprintf("SNR = %.2f, FAP = %.2e", calculateSNR(aboutput$periodsTested, abpergram), afapBLS), cex=2.0)
+    text(10.5, 4.4e-5, sprintf("SNR = %.2f, FAP = %.2e", calculateSNR(aboutput$periodsTested, abpergram), afapBLS), cex=2.0)
     plot(atcobsxy50$x, atpergram, type = 'l', main="TCF periodogram", log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=2.1, cex.axis=2.0)
     lines(atcobsxy50$x, atcobsxy50$fitted, type = 'l', col='red')
     # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
