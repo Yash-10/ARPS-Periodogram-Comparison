@@ -60,8 +60,10 @@ calculateFAP <- function(
     n,
     periodogramMaxima
 ) {
-    calculatedFAP <- (n / (K * L)) * (1 - pevd(periodogramMaxima, loc=location, scale=scale, shape=shape, type="GEV"))
-    return (calculatedFAP);
+    # See equation 5 in https://academic.oup.com/mnras/article/450/2/2052/983840
+    calculatedFAP <- 1 - pevd(periodogramMaxima, loc=location, scale=scale, shape=shape, type="GEV")
+    # To manually calculate the FAP, use: 1 - exp(-(1 + shape * ((periodogramMaxima - location) / scale)) ^ (-1 / shape))
+    return (calculatedFAP)
 }
 
 evd <- function(
@@ -92,7 +94,8 @@ evd <- function(
     significanceMode='max',  # This tells whose significance (in terms of FAP) should be reported. 'max' means report significance of max(output), where output is the original periodogram (note output can be detrended/standardized based on `useStandardization` and `mode`).
     # (cont...) Other option is 'expected_peak' which tells to calculate significance of not the maximum power but the power corresponding to the expected period. 'expected_peak' option can only be used in simulations.
     seedValue=1,
-    FAPSNR_mode=0  # 0 means only FAP, 1 means only SNR, and 2 means a linear combination of FAP and SNR.
+    FAPSNR_mode=0,  # 0 means only FAP, 1 means only SNR, and 2 means a linear combination of FAP and SNR.
+    snrFAP=0.001
 ) {
     # L, R, noiseType, ntransits must be integers.
     stopifnot(exprs={
@@ -223,7 +226,7 @@ evd <- function(
     # (2) Max of each partial periodogram
     # Note that from Suveges paper, the reason for doing block maxima is: "The principal goal is to decrease the computational load due to a bootstrap. At the same time, the reduced frequency set should reflect the fundamental characteristics of a full periodogram: ..."
     maxima_R <- c()
-    # snrPartials <- c()
+    snrPartials <- c()
     for (j in 1:R) {
         KLfreqs <- freqdivideFreqGrid(freqGrid, L, K, seedValue=seedValue)
 
@@ -245,7 +248,7 @@ evd <- function(
             else {
                 partialPeriodogram <- out$spec
             }
-            # snrPartial <- calculateSNR(out$periodsTested, partialPeriodogram, lambdaTrend=1)
+            snrPartial <- calculateSNR(out$periodsTested, partialPeriodogram, lambdaTrend=1)
         }
         else if (algo == "TCF") {
             # Note: We do not need auto.arima here since the bootstrapped time series corresponds to white noise, and so ARIMA is of no use here.
@@ -261,9 +264,9 @@ evd <- function(
             else {
                 partialPeriodogram <- out$outpow
             }
-            # snrPartial <- calculateSNR(pToTry * res, partialPeriodogram, lambdaTrend=1)
+            snrPartial <- calculateSNR(pToTry * res, partialPeriodogram, lambdaTrend=1)
         }
-        # snrPartials <- c(snrPartials, snrPartial)
+        snrPartials <- c(snrPartials, snrPartial)
 
         # Note: If we use oversampling, then while it increases the flexibility to choose frequencies in the frequency grid, it also has important issues as noted in https://academic.oup.com/mnras/article/388/4/1693/981666:
         # (1) "if we oversample the periodogram, the powers at the sampled frequencies are no longer independent..."
@@ -280,6 +283,17 @@ evd <- function(
         # partialPeriodogram <- decluster(partialPeriodogram, threshold = quantile(partialPeriodogram, probs=c(0.75)))
         maxima_R <- append(maxima_R, max(partialPeriodogram))
     }
+    fitEVD <- fevd(snrPartials, type='GEV')
+    location <- findpars(fitEVD)$location[1]  # In extRemes, the parameter values repeat R times (for stationary models), and all are same. So extract the first.
+    scale <- findpars(fitEVD)$scale[1]
+    shape <- findpars(fitEVD)$shape[1]
+
+    snrThreshold <- qevd(
+        1 - snrFAP,  # We assume the threshold SNR to correspond to a FAP of snrFAP.
+        loc=location, scale=scale, shape=shape, type="GEV"
+    )
+    print(sprintf("Threshold level for SNR: %f", snrThreshold))
+
     # if (FAPSNR_mode == 1) {
     #     return (c(score, mean(snrPartials), sd(snrPartials)))
     # }
@@ -376,7 +390,7 @@ evd <- function(
     print(sprintf("Overall score for this periodogram peak = %f", score))
 
     # return (c(score, mean(snrPartials), sd(snrPartials)))
-    return (score)
+    return (score, snrThreshold)
 
     ###### Interpreting what FAP is good (from Baluev: https://academic.oup.com/mnras/article/385/3/1279/1010111):
     # (1) > Given some small critical value FAP* (usually between 10−3 and 0.1), we can claim that the candidate signal is statistically
