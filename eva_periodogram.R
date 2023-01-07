@@ -218,10 +218,6 @@ evd <- function(
         score <- NA
     }
     print(sprintf("Signal-to-noise ratio of periodogram peak = %f", snr))
-    if (FAPSNR_mode == 1){
-        score <- 1 / snr
-        return (score)
-    }
 
     # (2) Max of each partial periodogram
     # Note that from Suveges paper, the reason for doing block maxima is: "The principal goal is to decrease the computational load due to a bootstrap. At the same time, the reduced frequency set should reflect the fundamental characteristics of a full periodogram: ..."
@@ -294,9 +290,11 @@ evd <- function(
     )
     print(sprintf("Threshold level for SNR: %f", snrThreshold))
 
-    # if (FAPSNR_mode == 1) {
-    #     return (c(score, mean(snrPartials), sd(snrPartials)))
-    # }
+    if (FAPSNR_mode == 1) {
+        score <- 1 / snr
+        return (c(score, snrThreshold))
+    }
+
     print("Done calculating maxima...")
     # print(maxima_R)
 
