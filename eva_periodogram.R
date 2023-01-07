@@ -390,7 +390,7 @@ evd <- function(
     print(sprintf("Overall score for this periodogram peak = %f", score))
 
     # return (c(score, mean(snrPartials), sd(snrPartials)))
-    return (score, snrThreshold)
+    return (c(score, snrThreshold))
 
     ###### Interpreting what FAP is good (from Baluev: https://academic.oup.com/mnras/article/385/3/1279/1010111):
     # (1) > Given some small critical value FAP* (usually between 10−3 and 0.1), we can claim that the candidate signal is statistically
