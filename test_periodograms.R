@@ -19,6 +19,9 @@ getLightCurve <- function(
     checkConditions=TRUE,  # Whether to perform small unit tests within the code to ensure the output is as expected. Recommended: Set to TRUE for almost all cases, but added this option so that `uniroot` does not throw error when finding the limiting depth - see below functions.
     seedValue=1
 ) {
+    # *** IMPORTANT LIMITATION OF THIS FUNCTION ***
+    # -> Both the duration (in hours) and the period (in days) must be either integer or half-integer because the code requires two times the duration and period to be an integer.
+    # *********************************************
     if (checkConditions) {
         stopifnot(exprs = {
             period > 0
@@ -26,7 +29,7 @@ getLightCurve <- function(
             depth <= 100
             duration >= 0
             ntransits >= 0
-        })   
+        })
     }
 
     # Create a simulated planet transit time series based on period, depth, and transit duration.
@@ -38,7 +41,7 @@ getLightCurve <- function(
         stopifnot(exprs = {
             inTransitValue < 1
             inTransitValue >= 0
-            inTransitTime > 0
+            inTransitTime > 0  # NOTE: 0 transit duration is not allowed by the code as of now.
             constTime > 0
         })
     }
