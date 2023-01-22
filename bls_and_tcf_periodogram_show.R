@@ -1,23 +1,44 @@
 blsAndTCF <- function(
-    period, depth, duration, noiseType=1, ntransits=10, res=2, ofac=2,
-    gaussStd=1e-4, ar=0.2, ma=0.2, order=c(1, 0, 1), showFAP=FALSE, useOptimalFreqSampling=TRUE
+    period=NULL, depth=NULL, duration=NULL, y=NULL, t=NULL, noiseType=1, ntransits=10, res=2, ofac=2,
+    gaussStd=1e-4, ar=0.2, ma=0.2, order=c(1, 0, 1), showFAP=FALSE, useOptimalFreqSampling=TRUE, lctype="sim"
 ) {
-    # Generate light curve using the parameters.
-    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
-    y <- unlist(yt[1])
-    t <- unlist(yt[2])
+    # Perform some checks.
+    if (lctype == "sim" && (is.null(period) | is.null(depth) | is.null(duration))) {
+        stop("type is set to `sim`, but at least one of {period, depth, or duration} is not specified!")
+    }
+    if (lctype == "real" && (is.null(y) | is.null(t))) {
+        stop("type is set to `real`, but at least one of {y, t} is not specified!")
+    }
+    if (lctype == "real") {
+        period <- depth <- duration <- noiseType <- ntransits <- ar <- ma <- order <- gaussStd <- NULL
+        significanceMode <- 'max'  # Since for real light curves, passing `expected_peak` is not possible.
+        # TODO: Once confirmed with Prof. about the cadence of the real light curves, overwrite res value here.
+    }
+
+    if (lctype == "sim") {
+        # Generate light curve using the parameters.
+        yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
+        y <- unlist(yt[1])
+        t <- unlist(yt[2])
+    }
     noiseStd <- unlist(yt[3])
     noiseIQR <- unlist(yt[4])
 
-    # Special case (TCF fails if absolutely no noise -- so add a very small amount of noise just to prevent any errors).
-    if (noiseType == 0) {
-        y <- y + 10^-10 * rnorm(length(y))
+    if (lctype == "sim") {
+        # Special case (TCF fails if absolutely no noise -- so add a very small amount of noise just to prevent any errors).
+        if (noiseType == 0) {
+            y <- y + 10^-10 * rnorm(length(y))
+        }
     }
 
     # Create frequency grid.
-    bfreqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo="BLS")
-    tfreqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo="TCF")
+    bfreqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo="BLS", lctype=lctype)
+    tfreqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo="TCF", lctype=lctype)
 
+    stopifnot(exprs={
+        identical(bfreqGrid, tfreqGrid)
+    })
+    
     boutput <- bls(y, t, bls.plot = FALSE, per.min=min(1/bfreqGrid), per.max=max(1/bfreqGrid), nper=length(bfreqGrid))
     tfstep <- (max(tfreqGrid) - min(tfreqGrid)) / length(tfreqGrid)
     tfreqs <- seq(from = min(tfreqGrid), by = tfstep, length.out = length(tfreqGrid))

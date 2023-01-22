@@ -26,12 +26,11 @@ library('boot')
 library('cobs')
 source('BLS/bls.R')
 source('TCF3.0/intf_libtcf.R')
-source('test_periodograms.R')
 source('utils.R')
 library('goftest')  # install.packages("goftest")
 library('gbutils')  # https://search.r-project.org/CRAN/refmans/gbutils/html/cdf2quantile.html
 
-
+source('test_periodograms.R')
 boot_stat <- function(original_vector, resample_vector) {
     original_vector[resample_vector]
 }
@@ -67,9 +66,10 @@ calculateFAP <- function(
 }
 
 evd <- function(
-    period,  # in days.
-    depth,  # in %
-    duration,  # in hours.
+    period=NULL,  # in days.
+    depth=NULL,  # in %
+    duration=NULL,  # in hours.
+    y=NULL, t=NULL,  # If type == "real" (see below), then y (observations) and t (time) are needed.
     L=500,  # No. of distinct frequency bins.
     R=500,  # No. of bootstrap resamples of the original time series.
     noiseType=1,  # Noise model present in y. Either 1 (white gaussian noise) or 2 (autoregressive noise).
@@ -95,8 +95,22 @@ evd <- function(
     # (cont...) Other option is 'expected_peak' which tells to calculate significance of not the maximum power but the power corresponding to the expected period. 'expected_peak' option can only be used in simulations.
     seedValue=1,
     FAPSNR_mode=0,  # 0 means only FAP, 1 means only SNR, and 2 means a linear combination of FAP and SNR.
-    snrFAP=0.001
+    snrFAP=0.001,
+    lctype="sim"  # Light curve type. Allowed values: sim or real. This parameter controls whether the light curve needs to be simulated or is a real light curve. In the former case, period, depth, and duration is needed at the least. In the latter case, y and t are needed as input.
 ) {
+    # Perform some checks.
+    if (lctype == "sim" && (is.null(period) | is.null(depth) | is.null(duration))) {
+        stop("type is set to `sim`, but at least one of {period, depth, or duration} is not specified!")
+    }
+    if (lctype == "real" && (is.null(y) | is.null(t))) {
+        stop("type is set to `real`, but at least one of {y, t} is not specified!")
+    }
+    if (lctype == "real") {
+        period <- depth <- duration <- noiseType <- ntransits <- ar <- ma <- order <- gaussStd <- NULL
+        significanceMode <- 'max'  # Since for real light curves, passing `expected_peak` is not possible.
+        # TODO: Once confirmed with Prof. about the cadence of the real light curves, overwrite res value here.
+    }
+
     # L, R, noiseType, ntransits must be integers.
     stopifnot(exprs={
         L %% 1 == 0
@@ -113,13 +127,16 @@ evd <- function(
 
     K <- ofac  # No. of distinct frequencies in a frequency bin.  # Note that in Suveges, 2014, K = 16 is used and K is called as the oversampling factor. So we also do that.
     # In short, L allows capturing long-range dependence while K prevents spectral leakage -- from Suveges.
-    # TODO: We need to do some test by varying L and R to see which works better for each case?
+    # Do we need to do some test by varying L and R to see which works better for each case? - No, ideally performance should remain largely unaffected by L and R.
 
-    # Generate light curve using the parameters.
-    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, res=res, checkConditions=checkConditions, seedValue=seedValue)
-    y <- unlist(yt[1])
-    t <- unlist(yt[2])
+    if (lctype == "sim") {
+        # Generate light curve using the parameters.
+        yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, res=res, checkConditions=checkConditions, seedValue=seedValue)
+        y <- unlist(yt[1])
+        t <- unlist(yt[2])
+    }
 
+    # TODO: I think relax this condition since we also want to apply on real light curves.
     if (any(is.na(y)) | any(is.na(t))) {
         stop("Atleast one value in the observations or the time epochs is NaN!")
     }
@@ -128,8 +145,10 @@ evd <- function(
     print(sprintf("[parameters: gaussStd = %f, ar = %f, ma = %f, order = %s] ACF at lag-1: %s", gaussStd, ar, ma, paste(order, collapse=" "), acfEstimate$acf[[2]]))
 
     # Special case (TCF fails if absolutely no noise -- so add a very small amount of noise just to prevent any errors).
-    if (noiseType == 0 && algo == "TCF") {
-        y <- y + 10^-10 * rnorm(length(y))
+    if (lctype == "sim") {
+        if (noiseType == 0 && algo == "TCF") {
+            y <- y + 10^-10 * rnorm(length(y))
+        }
     }
 
     # (1) Bootstrap the time series.
@@ -168,7 +187,7 @@ evd <- function(
     })
 
     # Create a frequency grid.
-    freqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo)
+    freqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo, lctype=lctype)
     if (any(is.na(freqGrid))) {
         stop("Atleast one frequency in the frequency grid is NaN!")
     }
@@ -183,6 +202,9 @@ evd <- function(
 
     # Compute full periodogram (to be used afterwards when using FAP (mode=0 or 2), and terminate after this only if using mode=1).
     if (algo == "BLS") {
+        if (isTRUE(noiseType == 2)) {
+            y <- getGPRResid(t, y)  # Run Gaussian Processes Regression on light curve if autoregressive noise is present.
+        }
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
         ptested <- output$periodsTested
         if (useStandardization) {
@@ -244,7 +266,7 @@ evd <- function(
             else {
                 partialPeriodogram <- out$spec
             }
-            snrPartial <- calculateSNR(out$periodsTested, partialPeriodogram, lambdaTrend=1)
+            snrPartial <- calculateSNR(out$periodsTested, partialPeriodogram, lambdaTrend=1, oneSideWindowLength=1500)
         }
         else if (algo == "TCF") {
             # Note: We do not need auto.arima here since the bootstrapped time series corresponds to white noise, and so ARIMA is of no use here.
@@ -260,23 +282,23 @@ evd <- function(
             else {
                 partialPeriodogram <- out$outpow
             }
-            snrPartial <- calculateSNR(pToTry * res, partialPeriodogram, lambdaTrend=1)
+            snrPartial <- calculateSNR(pToTry * res, partialPeriodogram, lambdaTrend=1, oneSideWindowLength=1500)
         }
         snrPartials <- c(snrPartials, snrPartial)
 
+        # *** Some notes on declustering below ***
         # Note: If we use oversampling, then while it increases the flexibility to choose frequencies in the frequency grid, it also has important issues as noted in https://academic.oup.com/mnras/article/388/4/1693/981666:
         # (1) "if we oversample the periodogram, the powers at the sampled frequencies are no longer independent..."
-        # To solve the above problem, we decluster the partial periodograms. Even without oversampling, the peaks tend to be clustered and we need to decluster the peaks.
-
-        # TODO: See performance with and without declustering.
+        # To solve the above problem, we decluster the partial periodograms. Even without oversampling, the peaks tend to be clustered and we need to decluster the peaks. One can see performance with and without declustering.
         # Decluster the peaks: https://search.r-project.org/CRAN/refmans/extRemes/html/decluster.html
         # Some intution on how to choose the threshold: https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.996.914&rep=rep1&type=pdf (search for threshold - Ctrl+F - in the paper)
         # See section 5.3.2 in Coles, 2001 to see why declustering is needed: Extremes tend to cluster themselves and tend to occur in groups. Note that log-likelihood can be decomposed into a product of individual marginal distribution functions only under iid. So declustering "tries" to make them independent to prevent the violation of the iid assumption while fitting the GEV model below.
         # In short, declustering (approximately) solves the dependence issue of extremes.
-        # TODO: We might not need declustering in all cases -- we can calculate the extremel index and do declustering only if index < 1...
-        # Due to our way of extracting maxima of periodograms (i.e. not from whole periodogram but only from partial periodogram), maybe we do not even need declustering.
-        # TODO: How to choose best threshold for declustering?
+        # We might not need declustering in all cases -- we can calculate the extremel index and do declustering only if index < 1...
+        # **NOTE**: Due to our way of extracting maxima of periodograms (i.e. not from whole periodogram but only from partial periodogram), maybe we do not even need declustering because the peaks, while fitting the GEV, do not have any physical sense, so declustering is not required.
+        # How to choose the best threshold for declustering is an important aspect in this.
         # partialPeriodogram <- decluster(partialPeriodogram, threshold = quantile(partialPeriodogram, probs=c(0.75)))
+        # ****************************************
         maxima_R <- append(maxima_R, max(partialPeriodogram))
     }
     fitEVD <- fevd(snrPartials, type='GEV')
@@ -350,7 +372,7 @@ evd <- function(
     if (significanceMode == 'max') {
         toCheck <- max(output)    
     }
-    else if (significanceMode == 'expected_peak') {
+    else if ((significanceMode == 'expected_peak') & (lctype == "sim")) {
         if (algo == "BLS") {
             x <- which.min(abs(ptested - period * 24))
             # The below is done in reality, there would be differences between estimated period and actual period, hence we need to select max from an interval around the expected period.
@@ -368,10 +390,15 @@ evd <- function(
 
     if (FAPSNR_mode == 0 || FAPSNR_mode == 2) {
         print("Calculating FAP...")
-        # Currently, the +- 3 hours error margin is chosen and fixed. No specific reason for choosing "3": we wanted to choose a value not very small such as 1 (to not penalize too much) and not very large such as 10 as well.
-        if (periodAtMaxOutput < period * 24 - 3 || periodAtMaxOutput > period * 24 + 3) {  # We provide an errorbar of 3 hours for the estimated period.
-            warning("Periodogram peak is far away from the actual period which means the periodogram is fitting the noise. FAP = 1 will be returned.")
-            fap <- 1.0
+        if (lctype == "sim") {
+            # Currently, the +- 3 hours error margin is chosen and fixed. No specific reason for choosing "3": we wanted to choose a value not very small such as 1 (to not penalize too much) and not very large such as 10 as well.
+            if (periodAtMaxOutput < period * 24 - 3 || periodAtMaxOutput > period * 24 + 3) {  # We provide an errorbar of 3 hours for the estimated period.
+                warning("Periodogram peak is far away from the actual period which means the periodogram is fitting the noise. FAP = 1 will be returned.")
+                fap <- 1.0
+            }
+            else {
+                fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), toCheck)
+            }
         }
         else {
             fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), toCheck)

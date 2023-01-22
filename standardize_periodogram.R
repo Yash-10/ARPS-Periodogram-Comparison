@@ -43,7 +43,6 @@ library(moments)
 library('cobs')
 source('TCF3.0/intf_libtcf.R')
 source('BLS/bls.R')
-source('test_periodograms.R')
 source('utils.R')
 source('eva_periodogram.R')
 
@@ -94,9 +93,10 @@ computeScatter <- function(
 }
 
 standardPeriodogram <- function(
-    period,  # in days.
-    depth,  # in %
-    duration,  # in hours.
+    period=NULL,  # in days.
+    depth=NULL,  # in %
+    duration=NULL,  # in hours.
+    y=NULL, t=NULL,
     noiseType = 0,  # 0 for no noise, 1 for white Gaussian noise, and 2 for autoregressive noise (if 2, the ARMA model is internally fixed; also no differencing is used, so it assumes the time-series is stationary or already differenced.)
     algo = "BLS",  # or "TCF"
     windowLength=100,
@@ -111,24 +111,49 @@ standardPeriodogram <- function(
     order=c(1, 0, 1),
     L=500, R=500,
     useOptimalFreqSampling=FALSE,
-    seedValue=1
+    seedValue=1,
+    lctype="sim"
 ){
-    # Generate light curve using the parameters.
-    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
-    y <- unlist(yt[1])
-    t <- unlist(yt[2])
+    # Perform some checks.
+    if (lctype == "sim" && (is.null(period) | is.null(depth) | is.null(duration))) {
+        stop("type is set to `sim`, but at least one of {period, depth, or duration} is not specified!")
+    }
+    if (lctype == "real" && (is.null(y) | is.null(t))) {
+        stop("type is set to `real`, but at least one of {y, t} is not specified!")
+    }
+    if (lctype == "real") {
+        period <- depth <- duration <- noiseType <- ntransits <- ar <- ma <- order <- gaussStd <- NULL
+        significanceMode <- 'max'  # Since for real light curves, passing `expected_peak` is not possible.
+        # TODO: Once confirmed with Prof. about the cadence of the real light curves, overwrite res value here.
+    }
+
+    if (lctype == "sim") {
+        # Generate light curve using the parameters.
+        yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
+        y <- unlist(yt[1])
+        t <- unlist(yt[2])
+    }
     noiseStd <- unlist(yt[3])
     noiseIQR <- unlist(yt[4])
 
-    # Special case (TCF fails if absolutely no noise -- so add a very small amount of noise just to prevent any errors).
-    if (noiseType == 0 && algo == "TCF") {
-        y <- y + 10^-10 * rnorm(length(y))
+    if (lctype == "sim") {
+        # Special case (TCF fails if absolutely no noise -- so add a very small amount of noise just to prevent any errors).
+        if (noiseType == 0 && algo == "TCF") {
+            y <- y + 10^-10 * rnorm(length(y))
+        }
     }
 
     # Create frequency grid.
-    freqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo)
+    freqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo, lctype=lctype)
+
+    stopifnot(exprs={
+        all(freqGrid <= res / 2)
+    })
 
     if (algo == "BLS") {
+        if (isTRUE(noiseType) == 2) {
+            y <- getGPRResid(t, y)
+        }
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
     }
     else if (algo == "TCF") {
@@ -137,6 +162,7 @@ standardPeriodogram <- function(
         periodsToTry <- 1 / freqs
         residTCF <- getResidForTCF(y)
         output <- tcf(residTCF, p.try = periodsToTry*res, print.output = TRUE)
+        print(str(output))
         # output$inper = output$inper / 2
     }
 
@@ -230,7 +256,19 @@ standardPeriodogram <- function(
 
         plot(cobsxy50$x, normalizedPeriodogram, type = 'l', main=sprintf('Standardized %s periodogram', algo), log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
 
-        plot.new()  # Just show an empty plot.
+        # plot.new()  # Just show an empty plot.
+        lc <- data.frame(t=t, y=y)
+        if (lctype == "sim") {  # TODO: In future, we can still allow plotting the folded lc but with the predicted period.
+            plot_folded_lc(lc, bestper=period*24*res)
+        }
+        else {
+            if (algo == "BLS") {
+                plot_folded_lc(lc, bestper=output$per*24*res)
+            }
+            else if (algo == "TCF") {
+                plot_folded_lc(lc, bestper=output$inper[which.max(output$outpow)])
+            }
+        }
 
         # Plot histogram of periodogram. Shows log-frequency on y-axis in histogram for better visualization.
         hist.data = hist(pergram, breaks=50, plot = FALSE)

@@ -1,4 +1,4 @@
-source('test_periodograms.R')
+source('utils.R')
 source('standardize_periodogram.R')
 
 blsAndTCF <- function(
