@@ -30,7 +30,6 @@ source('utils.R')
 library('goftest')  # install.packages("goftest")
 library('gbutils')  # https://search.r-project.org/CRAN/refmans/gbutils/html/cdf2quantile.html
 
-source('test_periodograms.R')
 boot_stat <- function(original_vector, resample_vector) {
     original_vector[resample_vector]
 }
@@ -70,8 +69,8 @@ evd <- function(
     depth=NULL,  # in %
     duration=NULL,  # in hours.
     y=NULL, t=NULL,  # If type == "real" (see below), then y (observations) and t (time) are needed.
-    L=500,  # No. of distinct frequency bins.
-    R=500,  # No. of bootstrap resamples of the original time series.
+    L=300,  # No. of distinct frequency bins.
+    R=300,  # No. of bootstrap resamples of the original time series.
     noiseType=1,  # Noise model present in y. Either 1 (white gaussian noise) or 2 (autoregressive noise).
     # Note: noiseType is passed as argument to the `getLightCurve` function.
     useStandardization=FALSE,  # If true, uses standardized periodograms for GEV fitting and extrapolation.
@@ -88,7 +87,7 @@ evd <- function(
     ar=0.2,
     ma=0.2,
     order=c(1, 0, 1),
-    res=2,  # Resolution for creating the time series. Refer getLightCurve from test_periodogram.R
+    res=2,  # Resolution for creating the time series. Refer getLightCurve from utils.R
     mode='detrend',  # Standardization mode: either detrend_normalize or detrend, see the function `standardizeAPeriodogram`. Only used if useStandardization=TRUE.
     checkConditions=TRUE,  # Mostly passed to light curve generation code. Also used in ad.test p-value check in this function.
     significanceMode='max',  # This tells whose significance (in terms of FAP) should be reported. 'max' means report significance of max(output), where output is the original periodogram (note output can be detrended/standardized based on `useStandardization` and `mode`).
@@ -96,8 +95,10 @@ evd <- function(
     seedValue=1,
     FAPSNR_mode=0,  # 0 means only FAP, 1 means only SNR, and 2 means a linear combination of FAP and SNR.
     snrFAP=0.001,
-    lctype="sim"  # Light curve type. Allowed values: sim or real. This parameter controls whether the light curve needs to be simulated or is a real light curve. In the former case, period, depth, and duration is needed at the least. In the latter case, y and t are needed as input.
+    lctype="sim",  # Light curve type. Allowed values: sim or real. This parameter controls whether the light curve needs to be simulated or is a real light curve. In the former case, period, depth, and duration is needed at the least. In the latter case, y and t are needed as input.
+    applyGPRforBLS=FALSE  # This controls whether Gaussian Process Regression needs to be run before BLS.
 ) {
+    # TODO: Add comment if any assumption about Nan is assumed by this code.
     # Perform some checks.
     if (lctype == "sim" && (is.null(period) | is.null(depth) | is.null(duration))) {
         stop("type is set to `sim`, but at least one of {period, depth, or duration} is not specified!")
@@ -108,7 +109,7 @@ evd <- function(
     if (lctype == "real") {
         period <- depth <- duration <- noiseType <- ntransits <- ar <- ma <- order <- gaussStd <- NULL
         significanceMode <- 'max'  # Since for real light curves, passing `expected_peak` is not possible.
-        # TODO: Once confirmed with Prof. about the cadence of the real light curves, overwrite res value here.
+        res <- 2
     }
 
     # L, R, noiseType, ntransits must be integers.
@@ -136,12 +137,11 @@ evd <- function(
         t <- unlist(yt[2])
     }
 
-    # TODO: I think relax this condition since we also want to apply on real light curves.
-    if (any(is.na(y)) | any(is.na(t))) {
-        stop("Atleast one value in the observations or the time epochs is NaN!")
+    if (lctype == 'sim' & (any(is.na(y)) | any(is.na(t)))) {
+        stop("Atleast one value in the observations or the time epochs is NaN! while lctype is sim!")
     }
 
-    acfEstimate <- acf(y, plot = FALSE)
+    acfEstimate <- acf(y, plot = FALSE, na.action = na.pass)
     print(sprintf("[parameters: gaussStd = %f, ar = %f, ma = %f, order = %s] ACF at lag-1: %s", gaussStd, ar, ma, paste(order, collapse=" "), acfEstimate$acf[[2]]))
 
     # Special case (TCF fails if absolutely no noise -- so add a very small amount of noise just to prevent any errors).
@@ -195,18 +195,19 @@ evd <- function(
     stopifnot(exprs={
         all(freqGrid <= res / 2)  # No frequency must be greater than the Nyquist frequency.
         length(freqGrid) >= K * L  # K*L is ideally going to be less than N, otherwise the bootstrap has no benefit in terms of compuation time.
-        # length(freqGrid) / (K * L) <= length(t) / 2  # This condition is mentioned in https://ui.adsabs.harvard.edu/abs/2012ada..confE..16S.
+        length(freqGrid) / (K * L) <= length(t) / 2  # This condition is mentioned in https://ui.adsabs.harvard.edu/abs/2012ada..confE..16S.
     })
 
     print(sprintf("Max frequency: %f, Min frequency: %f", max(freqGrid), min(freqGrid)))
 
     # Compute full periodogram (to be used afterwards when using FAP (mode=0 or 2), and terminate after this only if using mode=1).
     if (algo == "BLS") {
-        if (isTRUE(noiseType == 2)) {
+        if (isTRUE(noiseType == 2) | applyGPRforBLS) {
             y <- getGPRResid(t, y)  # Run Gaussian Processes Regression on light curve if autoregressive noise is present.
         }
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
         ptested <- output$periodsTested
+        perResults <- c(output$per, output$depth, output$dur)
         if (useStandardization) {
             output <- standardizeAPeriodogram(output, periodsToTry=NULL, algo="BLS", mode=mode)
         }
@@ -219,8 +220,15 @@ evd <- function(
         fstep <- (max(freqGrid) - min(freqGrid)) / length(freqGrid)
         freqs <- seq(from = min(freqGrid), by = fstep, length.out = length(freqGrid))
         periodsToTry <- 1 / freqs
-        residTCF <- getResidForTCF(y)
-        output <- tcf(residTCF, p.try = periodsToTry * res, print.output = TRUE)
+        if (isTRUE(noiseType == 2) | lctype == 'real') {  # Only perform ARIMA when autoregressive noise is present.
+            processed_y <- getResidForTCF(y)
+        }
+        else {  # Even if noise is uncorrelated, differencing must be performed due to the nature of TCF looking at double spikes.
+            processed_y <- diff(y)
+        }
+        output <- tcf(processed_y, p.try = periodsToTry * res, print.output = TRUE)
+        powmax.loc = which.max(output$outpow)
+        perResults <- c(output$inper[powmax.loc]/res, output$outdepth[powmax.loc], output$outdur[powmax.loc]/res)
         if (useStandardization) {
             output <- standardizeAPeriodogram(output, periodsToTry=periodsToTry, algo="TCF", mode=mode)
         }
@@ -275,7 +283,10 @@ evd <- function(
             # freqsPartial are the same frequencies as used in BLS (verified).
             freqsPartial <- seq(from = min(KLfreqs), by = freqStepPartial, length.out = K*L)
             pToTry <- 1 / freqsPartial
-            out <- tcf(bootTS[j,], p.try = pToTry * res, print.output = FALSE)  # Multiplying by res because TCF works according to cadence rather than actual time values, unlike BLS. Doing this ensures, TCF still peaks at 72 hr for different res values, for example.
+            # If the original light curve contains NA values, then TCF on bootstrapped light curve can result in
+            # TCF powers to blow up to very large numbers. Hence, we remove NA values only in this bootstrapped case.
+            # NOTE: It is important not to remove NA in this way for the original TCF periodogram already computed above, but should be done for the bootstrapped ligth curve's periodogram for TCF..
+            out <- tcf(diff(bootTS[j,][!is.na(bootTS[j,])]), p.try = pToTry * res, print.output = FALSE)  # Multiplying by res because TCF works according to cadence rather than actual time values, unlike BLS. Doing this ensures, TCF still peaks at 72 hr for different res values, for example.
             if (useStandardization) {
                 partialPeriodogram <- standardizeAPeriodogram(out, periodsToTry = pToTry, algo="TCF", mode=mode)
             }
@@ -314,7 +325,7 @@ evd <- function(
 
     if (FAPSNR_mode == 1) {
         score <- 1 / snr
-        return (c(score, snrThreshold))
+        return (c(score, snrThreshold, perResults))
     }
 
     print("Done calculating maxima...")
@@ -391,8 +402,8 @@ evd <- function(
     if (FAPSNR_mode == 0 || FAPSNR_mode == 2) {
         print("Calculating FAP...")
         if (lctype == "sim") {
-            # Currently, the +- 3 hours error margin is chosen and fixed. No specific reason for choosing "3": we wanted to choose a value not very small such as 1 (to not penalize too much) and not very large such as 10 as well.
-            if (periodAtMaxOutput < period * 24 - 3 || periodAtMaxOutput > period * 24 + 3) {  # We provide an errorbar of 3 hours for the estimated period.
+            # 1.5 hours error margin used.
+            if (periodAtMaxOutput < period * 24 - 1.5 || periodAtMaxOutput > period * 24 + 1.5) {
                 warning("Periodogram peak is far away from the actual period which means the periodogram is fitting the noise. FAP = 1 will be returned.")
                 fap <- 1.0
             }
@@ -415,7 +426,7 @@ evd <- function(
     print(sprintf("Overall score for this periodogram peak = %f", score))
 
     # return (c(score, mean(snrPartials), sd(snrPartials)))
-    return (c(score, snrThreshold))
+    return (c(score, snrThreshold, perResults))
 
     ###### Interpreting what FAP is good (from Baluev: https://academic.oup.com/mnras/article/385/3/1279/1010111):
     # (1) > Given some small critical value FAP* (usually between 10−3 and 0.1), we can claim that the candidate signal is statistically
@@ -483,7 +494,6 @@ smallestPlanetDetectableTest <- function(  # This function returns the smallest 
     png(filename=sprintf("%sdays_%shours.png", period, duration))
     plot(depths*1e4, faps, xlab='Depth (ppm)', ylab='FAP', type='o', ylim=c(1e-7, 0.02), log='y')  # Upper limit is set to 0.02 which is slightly larger than 0.01, the threshold FAP.
     axis(1, at=1:length(depths), labels=depths*1e4)
-    # TODO: Decide what threshold FAP to use for the autoregressive case. Or maybe keep it same irrespective of the noise.
     abline(h=0.01, col='black', lty=2)  # Here 1% FAP is used. Another choice is to use FAP=0.003, which corresponds to 3-sigma criterion for Gaussian -- commonly used in astronomy.
     dev.off()
 }

@@ -1,6 +1,13 @@
+# ---------------------------------------------------------------------------------------------------------
+# bls_and_tcf_periodogram_show.R : This plots the BLS and TCF periodograms in a single plot for comparison.
+# ---------------------------------------------------------------------------------------------------------
+
+source('utils.R')
+
 blsAndTCF <- function(
     period=NULL, depth=NULL, duration=NULL, y=NULL, t=NULL, noiseType=1, ntransits=10, res=2, ofac=2,
-    gaussStd=1e-4, ar=0.2, ma=0.2, order=c(1, 0, 1), showFAP=FALSE, useOptimalFreqSampling=TRUE, lctype="sim"
+    gaussStd=1e-4, ar=0.2, ma=0.2, order=c(1, 0, 1), showFAP=FALSE, useOptimalFreqSampling=TRUE, lctype="sim",
+    applyGPRforBLS=FALSE
 ) {
     # Perform some checks.
     if (lctype == "sim" && (is.null(period) | is.null(depth) | is.null(duration))) {
@@ -12,7 +19,7 @@ blsAndTCF <- function(
     if (lctype == "real") {
         period <- depth <- duration <- noiseType <- ntransits <- ar <- ma <- order <- gaussStd <- NULL
         significanceMode <- 'max'  # Since for real light curves, passing `expected_peak` is not possible.
-        # TODO: Once confirmed with Prof. about the cadence of the real light curves, overwrite res value here.
+        res <- 2
     }
 
     if (lctype == "sim") {
@@ -20,9 +27,9 @@ blsAndTCF <- function(
         yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
         y <- unlist(yt[1])
         t <- unlist(yt[2])
+        noiseStd <- unlist(yt[3])
+        noiseIQR <- unlist(yt[4])
     }
-    noiseStd <- unlist(yt[3])
-    noiseIQR <- unlist(yt[4])
 
     if (lctype == "sim") {
         # Special case (TCF fails if absolutely no noise -- so add a very small amount of noise just to prevent any errors).
@@ -31,15 +38,35 @@ blsAndTCF <- function(
         }
     }
 
-    # Create frequency grid.
-    bfreqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo="BLS", lctype=lctype)
-    tfreqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo="TCF", lctype=lctype)
+    # The BLS code does not handle non-numeric/missing values (NA, NaN, Inf).
+    # So we need to get rid of all such observations and the corresponding times.
+    # If there are non-numeric values, the y and t vectors will be different for BLS and TCF.
+    # This also means the frequency grid (that is based on the observation times) will also be different.
+    na_check <- any(is.na(y))
+    y_BLS <- y[!is.na(y)]
+    t_BLS <- t[!is.na(y)]
 
-    stopifnot(exprs={
-        identical(bfreqGrid, tfreqGrid)
-    })
+    if (isTRUE(noiseType == 2) | applyGPRforBLS) {
+        y_BLS <- getGPRResid(t_BLS, y_BLS)  # Run Gaussian Processes Regression on light curve if autoregressive noise is present. Only in the case of BLS.
+    }
+
+    # Create frequency grid.
+    bfreqGrid <- getFreqGridToTest(
+        t_BLS, period, duration, res=res, ofac=ofac,
+        useOptimalFreqSampling=useOptimalFreqSampling, algo="BLS", lctype=lctype
+    )
+    tfreqGrid <- getFreqGridToTest(
+        t, period, duration, res=res, ofac=ofac,
+        useOptimalFreqSampling=useOptimalFreqSampling, algo="TCF", lctype=lctype
+    )
+
+    if (!na_check) {
+        stopifnot(exprs={
+            identical(bfreqGrid, tfreqGrid)
+        })
+    }
     
-    boutput <- bls(y, t, bls.plot = FALSE, per.min=min(1/bfreqGrid), per.max=max(1/bfreqGrid), nper=length(bfreqGrid))
+    boutput <- bls(y_BLS, t_BLS, bls.plot = FALSE, per.min=min(1/bfreqGrid), per.max=max(1/bfreqGrid), nper=length(bfreqGrid))
     tfstep <- (max(tfreqGrid) - min(tfreqGrid)) / length(tfreqGrid)
     tfreqs <- seq(from = min(tfreqGrid), by = tfstep, length.out = length(tfreqGrid))
     tperiodsToTry <- 1 / tfreqs
@@ -102,23 +129,24 @@ blsAndTCF <- function(
     bpergram <- boutput$spec
     tpergram <- toutput$outpow
 
-    plot(t, y, type='l', main=sprintf("Period: %.1f days, depth: %.3f (pct), duration: %.1f (hrs)", period, depth, duration), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)', ylab='normalized flux')
-    acfEstimate <- acf(y, plot = FALSE)
+    plot(t, y, type='l', main= if (lctype == 'sim') sprintf("Period: %.1f days, depth: %.3f (pct), duration: %.1f (hrs)", period, depth, duration) else 'DTARPS89020549', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)', ylab='normalized flux')
+    acfEstimate <- acf(y, plot = FALSE, na.action = na.pass)
     lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
     n <- length(acfEstimate$acf)
-    plot(
-        acfEstimate$acf[2:n], main=sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f", lJStats[3], acfEstimate$acf[[2]]), cex=2, type="h", 
-        xlab="Lag",     
-        ylab="ACF", 
-        ylim=c(-0.2,0.2), # this sets the y scale to -0.2 to 0.2
-        las=1,
-        xaxt="n"
-    )
+    plot(acfEstimate)
+    # plot(
+    #     acfEstimate$acf[2:n], main=sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f", lJStats[3], acfEstimate$acf[[2]]), cex=2, type="h", 
+    #     xlab="Lag",     
+    #     ylab="ACF", 
+    #     ylim=c(-0.2,0.2), # this sets the y scale to -0.2 to 0.2
+    #     las=1,
+    #     xaxt="n"
+    # )
     abline(h=0)
     # Add labels to the x-axis
     x <- c(1:n)
-    y <- c(1:n)
-    axis(1, at=x, labels=y)
+    yy <- c(1:n)
+    axis(1, at=x, labels=yy)
 
     plot(bcobsxy50$x, bpergram, type = 'l', main="BLS periodogram", log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
     lines(bcobsxy50$x, bcobsxy50$fitted, type = 'l', col='red')

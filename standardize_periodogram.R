@@ -124,7 +124,7 @@ standardPeriodogram <- function(
     if (lctype == "real") {
         period <- depth <- duration <- noiseType <- ntransits <- ar <- ma <- order <- gaussStd <- NULL
         significanceMode <- 'max'  # Since for real light curves, passing `expected_peak` is not possible.
-        # TODO: Once confirmed with Prof. about the cadence of the real light curves, overwrite res value here.
+        res <- 2
     }
 
     if (lctype == "sim") {
@@ -132,9 +132,9 @@ standardPeriodogram <- function(
         yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
         y <- unlist(yt[1])
         t <- unlist(yt[2])
+        noiseStd <- unlist(yt[3])
+        noiseIQR <- unlist(yt[4])
     }
-    noiseStd <- unlist(yt[3])
-    noiseIQR <- unlist(yt[4])
 
     if (lctype == "sim") {
         # Special case (TCF fails if absolutely no noise -- so add a very small amount of noise just to prevent any errors).
@@ -162,7 +162,6 @@ standardPeriodogram <- function(
         periodsToTry <- 1 / freqs
         residTCF <- getResidForTCF(y)
         output <- tcf(residTCF, p.try = periodsToTry*res, print.output = TRUE)
-        print(str(output))
         # output$inper = output$inper / 2
     }
 
@@ -240,7 +239,7 @@ standardPeriodogram <- function(
         }
 
         plot(t, y, type='l', main=sprintf("Period: %.1f days, depth: %.3f (pct), duration: %.1f (hrs)", period, depth, duration), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)', ylab='normalized flux')
-        acfEstimate <- acf(y, plot = FALSE)
+        acfEstimate <- acf(y, plot = FALSE, na.action = na.pass)
         lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
         plot(acfEstimate, main=sprintf("P(Ljung-Box) = %s, lag-1 acf = %s", lJStats[3], acfEstimate$acf[[2]]), cex=2)
 

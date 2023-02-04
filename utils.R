@@ -144,9 +144,10 @@ getResidForTCF <- function(
     max.q = 5
     max.d = 0
     ARIMA.fit = auto.arima(diff(y), stepwise=FALSE, approximation=FALSE, seasonal=FALSE, max.p=max.p, max.q=max.q, max.d=max.d) #leave d as 0. 
+    print(ARIMA.fit)
     # Simple statistics of ARIMA residuals
     # plot(diff(y), col='black', type='l')
-    # lines(-fitted(ARIMA.fit), col='red')
+    # lines(fitted(ARIMA.fit), col='red')
     # return (1)
     ARIMA.resid = residuals(ARIMA.fit)
     return (ARIMA.resid)
