@@ -32,13 +32,8 @@ blsAndTCF <- function(
     tfstep <- (max(tfreqGrid) - min(tfreqGrid)) / length(tfreqGrid)
     tfreqs <- seq(from = min(tfreqGrid), by = tfstep, length.out = length(tfreqGrid))
     tperiodsToTry <- 1 / tfreqs
-    if (isTRUE(noiseType == 2) | lctype == 'real') {  # Only perform ARIMA when autoregressive noise is present.
-        processed_y_tcf <- getResidForTCF(y)
-    }
-    else {  # Even if noise is uncorrelated, differencing must be performed due to the nature of TCF looking at double spikes.
-        processed_y_tcf <- diff(y)
-    }
-    toutput <- tcf(processed_y_tcf, p.try = tperiodsToTry * res, print.output = TRUE)
+    tresidTCF <- getResidForTCF(y)
+    toutput <- tcf(tresidTCF, p.try = tperiodsToTry * res, print.output = TRUE)
     # output$inper = output$inper / 2
 
     # (1) Remove trend in periodogram

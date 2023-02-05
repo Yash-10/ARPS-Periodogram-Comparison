@@ -60,11 +60,11 @@ blsAndTCF <- function(
         useOptimalFreqSampling=useOptimalFreqSampling, algo="TCF", lctype=lctype
     )
 
-    if (!na_check) {
-        stopifnot(exprs={
-            identical(bfreqGrid, tfreqGrid)
-        })
-    }
+    # if (!na_check) {
+    #     stopifnot(exprs={
+    #         identical(bfreqGrid, tfreqGrid)
+    #     })
+    # }
     
     boutput <- bls(y_BLS, t_BLS, bls.plot = FALSE, per.min=min(1/bfreqGrid), per.max=max(1/bfreqGrid), nper=length(bfreqGrid))
     tfstep <- (max(tfreqGrid) - min(tfreqGrid)) / length(tfreqGrid)

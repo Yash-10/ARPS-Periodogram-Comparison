@@ -224,7 +224,7 @@ getFreqGridToTest <- function(
 
     freqGrid <- seq(from = freqMin, to = freqMax, by = freqStep)  # Goes from ~0.001 to max freq set by the time spacing (NOTE: fmax must be <= Nyquist frequency = 1/(2*delta_t) -- from Suveges, 2014), where delta_t here is res.
     freqGrid <- freqGrid[-length(freqGrid)]  # Remove the last frequency. This is done to prevent periodogram returning nan power at frequency = Nyquist frequency.
-    print(sprintf("No. of frequencies in grid: %f", length(freqGrid)))
+    print(sprintf("No. of frequencies in grid [algo = %s]: %f", algo, length(freqGrid)))
 
     return (freqGrid);
 }
