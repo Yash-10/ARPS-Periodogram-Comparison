@@ -171,6 +171,17 @@ evd <- function(
     # bootTS <- aperm(bootTS)  # This just permutes the dimension of bootTS - rows become columns and columns become rows - just done for easier indexing further in the code.
     set.seed(seedValue)
     bootTS <- boot(y, statistic=boot_stat, R=R)$t
+    # if (noiseType == 2 | applyGPRforBLS | lctype == 'real') {
+    #     if (algo == 'BLS') {
+    #         bootTS <- boot(getGPRResid(t, y), statistic=boot_stat, R=R)$t
+    #     }
+    #     else if (algo == 'TCF') {
+    #         bootTS <- boot(c(NA, getResidForTCF(y)), statistic=boot_stat, R=R)$t
+    #     }
+    # }
+    # else {
+    #     bootTS <- boot(y, statistic=boot_stat, R=R)$t
+    # }
 
     # Note: The below commented out code can be used to test if the bootstrap resampling suggests the data is white noise or not.
     # However, it is observed in around 1 in 500 cases, the box test suggests the bootstrapped time series is not white noise. But we ignore that since 1/500 is a low probability.
