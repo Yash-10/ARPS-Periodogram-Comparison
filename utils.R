@@ -276,7 +276,7 @@ calculateSNR <- function(  # TODO: For making this more efficient, compute trend
 timeAnalysis <- function(
     period, depth=0.01, duration=2, noiseType=1, ntransits=10,
     gaussStd=1e-4, ar=0.2, ma=0.2, res=2, order=c(1, 0, 1), algo="BLS",
-    ofac=2, useOptimalFreqSampling=TRUE, times=1, lctype="sim"
+    ofac=2, useOptimalFreqSampling=TRUE, times=1, lctype="sim", applyGPRforBLS=FALSE, applyARMAforBLS=FALSE
 ) {
     yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, res=res, checkConditions=TRUE, seedValue=42)
     y <- unlist(yt[1])
