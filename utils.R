@@ -153,6 +153,20 @@ getResidForTCF <- function(
     return (ARIMA.resid)
 }
 
+getARMAresid <- function(
+    y
+) {
+    max.p = 5
+    max.q = 5
+    max.d = 0
+    ARMA.fit = auto.arima(y, stepwise=FALSE, approximation=FALSE, seasonal=FALSE, max.p=max.p, max.q=max.q, max.d=max.d, d=0) #leave d as 0. 
+    ARMA.resid = residuals(ARMA.fit)
+    # plot(y, col='black', type='l')
+    # lines(fitted(ARMA.fit), col='red')
+    # plot(ARMA.resid)
+    return (ARMA.resid)
+}
+
 getGPRResid <- function(
     t, y
 ) {
@@ -260,18 +274,32 @@ calculateSNR <- function(  # TODO: For making this more efficient, compute trend
 }
 
 timeAnalysis <- function(
-    period, depth=0.015, duration=2, noiseType=1, ntransits=10,
+    period, depth=0.01, duration=2, noiseType=1, ntransits=10,
     gaussStd=1e-4, ar=0.2, ma=0.2, res=2, order=c(1, 0, 1), algo="BLS",
-    ofac=2, useOptimalFreqSampling=TRUE, times=100
+    ofac=2, useOptimalFreqSampling=TRUE, times=1, lctype="sim"
 ) {
     yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, res=res, checkConditions=TRUE, seedValue=42)
     y <- unlist(yt[1])
     t <- unlist(yt[2])
 
-    freqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo)
+    freqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo, lctype=lctype)
+
+    stopifnot(exprs={
+        all(freqGrid <= res / 2)  # No frequency must be greater than the Nyquist frequency.
+        length(freqGrid) >= K * L  # K*L is ideally going to be less than N, otherwise the bootstrap has no benefit in terms of compuation time.
+        length(freqGrid) / (K * L) <= length(t) / 2  # This condition is mentioned in https://ui.adsabs.harvard.edu/abs/2012ada..confE..16S.
+    })
+
+    print(sprintf("Max frequency: %f, Min frequency: %f", max(freqGrid), min(freqGrid)))
 
     if (algo == "BLS") {
         print("BLS periodogram time benchmark...")
+        if (isTRUE(noiseType == 2) | applyGPRforBLS) {
+            y <- getGPRResid(t, y)  # Run Gaussian Processes Regression on light curve if autoregressive noise is present.
+        }
+        if (applyARMAforBLS) {
+            y <- getARMAresid(y)
+        }
         microbenchmark(
             bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid)),
             times=times

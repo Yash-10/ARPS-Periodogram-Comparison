@@ -94,9 +94,9 @@ evd <- function(
     # (cont...) Other option is 'expected_peak' which tells to calculate significance of not the maximum power but the power corresponding to the expected period. 'expected_peak' option can only be used in simulations.
     seedValue=1,
     FAPSNR_mode=0,  # 0 means only FAP, 1 means only SNR, and 2 means a linear combination of FAP and SNR.
-    snrFAP=0.001,
     lctype="sim",  # Light curve type. Allowed values: sim or real. This parameter controls whether the light curve needs to be simulated or is a real light curve. In the former case, period, depth, and duration is needed at the least. In the latter case, y and t are needed as input.
-    applyGPRforBLS=FALSE  # This controls whether Gaussian Process Regression needs to be run before BLS.
+    applyGPRforBLS=FALSE,  # This controls whether Gaussian Process Regression needs to be run before BLS.
+    applyARMAforBLS=FALSE
 ) {
     # TODO: Add comment if any assumption about Nan is assumed by this code.
     # Perform some checks.
@@ -215,6 +215,9 @@ evd <- function(
     if (algo == "BLS") {
         if (isTRUE(noiseType == 2) | applyGPRforBLS) {
             y <- getGPRResid(t, y)  # Run Gaussian Processes Regression on light curve if autoregressive noise is present.
+        }
+        if (applyARMAforBLS) {
+            y <- getARMAresid(y)
         }
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
         ptested <- output$periodsTested
