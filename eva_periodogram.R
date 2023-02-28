@@ -1,20 +1,4 @@
 #################################################
-############## IMPORTANT REFERENCES #############
-# http://quantdevel.com/BootstrappingTimeSeriesData/BootstrappingTimeSeriesData.pdf (About bootstrapping in time-series data).
-# http://www.ccpo.odu.edu/~klinck/Reprints/PDF/omeyHUB2009.pdf (suggested by Suveges, 2014).
-# See about aliasing at the end of this page, for example: https://docs.gammapy.org/0.8/time/period.html and this also: https://hea-www.harvard.edu/~swolk/thesis/period/node5.html
-# See discussion on period/frequency spacing considerations for BLS: https://johnh2o2.github.io/cuvarbase/bls.html#period-spacing-considerations
-# Mathematical description of the Anderson-Darling test: https://bookdown.org/egarpor/NP-UC3M/nptests-dist.html
-
-########### Resources for extreme value statistics ##########
-# (1) http://personal.cityu.edu.hk/xizhou/first-draft-report.pdf
-# (2) Playlist on Extreme Value Statistics: https://youtube.com/playlist?list=PLh35GyCXlQaTJtTq4OQGzMblwEcVIWW9n
-# https://www.lmd.ens.fr/E2C2/class/naveauRomaniaE2C207.pdf
-
-#############################################################
-# Good set of papers: https://arxiv.org/pdf/1712.00734.pdf
-
-#################################################
 # Note:
 # 1. Here, TCF periods are scaled by `res` since TCF calculates periodogram in units of cadence rather than absolute time values.
 # 2. So this means the periods passed to TCF and BLS, in terms of values, could be different, but scientifically they are doing the same thing.
@@ -34,9 +18,10 @@ boot_stat <- function(original_vector, resample_vector) {
     original_vector[resample_vector]
 }
 
+# Calculates the return level corresponding to a given FAP.
 calculateReturnLevel <- function(
-    fap,   # Requested fap.
-    # Parameters of the fitted GEV model.
+    fap,   # Requested FAP, e.g. 0.01.
+    # Below three lines are the parameters of the fitted GEV model.
     location,
     scale,
     shape,
@@ -50,12 +35,13 @@ calculateReturnLevel <- function(
     return (returnLevel);
 }
 
+# Calculates the FAP for the observed periodogram maxima.
 calculateFAP <- function(
     location,
     scale,
     shape,
     K, L,
-    n,
+    n,  # Length of the full frequency grid.
     periodogramMaxima
 ) {
     # See equation 5 in https://academic.oup.com/mnras/article/450/2/2052/983840
@@ -64,6 +50,7 @@ calculateFAP <- function(
     return (calculatedFAP)
 }
 
+# The main extreme value function.
 evd <- function(
     period=NULL,  # in days.
     depth=NULL,  # in %
@@ -74,9 +61,9 @@ evd <- function(
     noiseType=1,  # Noise model present in y. Either 1 (white gaussian noise) or 2 (autoregressive noise).
     # Note: noiseType is passed as argument to the `getLightCurve` function.
     useStandardization=FALSE,  # If true, uses standardized periodograms for GEV fitting and extrapolation.
-    algo="BLS",
-    ntransits=10,
-    plot=TRUE,
+    algo="BLS",  # Either BLS or TCF.
+    ntransits=10,  # No. of transits to simulate.
+    plot=TRUE,  # Whether to plot.
     ofac=2,  # ofac is also called as "samples per peak" sometimes.
     # It is recommended to use `useOptimalFreqSampling` for transit periodograms. For periodograms of sine-like signals, 1/s is the frequency resolution, so it is not necessary to use optimal frequency sampling and instead better use uniform frequency sampling.
     useOptimalFreqSampling=TRUE,  # If want to use the optimal frequency sampling from Ofir, 2014: delta_freq = q / (s * os), where s is whole time series duration, os is oversampling factor and q is the duty cycle (time in single transit / total time series duration).
@@ -84,6 +71,7 @@ evd <- function(
     # Parameters for controlling noise. NOTE: `gaussStd` is considered for noiseType=2 as well for appropriate scaling of the autoregressive noise.
     # HENCE IT IS IMPORTANT TO KEEP THE SAME gaussStd value WHEN COMPARING BETWEEN AUTOREGRESSIVE AND GAUSSIAN NOISE CASES.
     gaussStd=1e-4,  # 0.01% Gaussian noise
+    # Imp: ar, ma, and order arguments are now obsolete. They are not used anywhere.
     ar=0.2,
     ma=0.2,
     order=c(1, 0, 1),
@@ -92,11 +80,11 @@ evd <- function(
     checkConditions=TRUE,  # Mostly passed to light curve generation code. Also used in ad.test p-value check in this function.
     significanceMode='max',  # This tells whose significance (in terms of FAP) should be reported. 'max' means report significance of max(output), where output is the original periodogram (note output can be detrended/standardized based on `useStandardization` and `mode`).
     # (cont...) Other option is 'expected_peak' which tells to calculate significance of not the maximum power but the power corresponding to the expected period. 'expected_peak' option can only be used in simulations.
-    seedValue=1,
+    seedValue=1,  # Seed to sue for reproducibility.
     FAPSNR_mode=0,  # 0 means only FAP, 1 means only SNR, and 2 means a linear combination of FAP and SNR.
     lctype="sim",  # Light curve type. Allowed values: sim or real. This parameter controls whether the light curve needs to be simulated or is a real light curve. In the former case, period, depth, and duration is needed at the least. In the latter case, y and t are needed as input.
     applyGPRforBLS=FALSE,  # This controls whether Gaussian Process Regression needs to be run before BLS.
-    applyARMAforBLS=FALSE
+    applyARMAforBLS=FALSE  # This controls whethter an ARMA model must be fit to the original light curve before applying BLS.
 ) {
     # TODO: Add comment if any assumption about Nan is assumed by this code.
     # Perform some checks.
@@ -128,7 +116,7 @@ evd <- function(
 
     K <- ofac  # No. of distinct frequencies in a frequency bin.  # Note that in Suveges, 2014, K = 16 is used and K is called as the oversampling factor. So we also do that.
     # In short, L allows capturing long-range dependence while K prevents spectral leakage -- from Suveges.
-    # Do we need to do some test by varying L and R to see which works better for each case? - No, ideally performance should remain largely unaffected by L and R.
+    # FAP and SNR estimates should remain largely unaffected by L and R. That's what was shown in our paper.
 
     if (lctype == "sim") {
         # Generate light curve using the parameters.
@@ -430,50 +418,6 @@ evd <- function(
     # significant (if FAP < FAP*) or is not (if FAP > FAP*)
 }
 
-validate1_evd <- function(  # Checks whether the values in the bootstrapped resample are actually from the original time series, which is a must.
-    y,
-    t,
-    bootTS,
-    R
-) {
-    for (j in 1:R) {
-        for (i in 1:length(y)) {
-            myVec <- c(bootTS$t[j,])
-            stopifnot(exprs = {
-                y[i] %in% myVec  # Obviously, values in the bootstrap sample must be there in the original time series since we are sampling from it.
-            })
-            any(duplicated(myVec))  # Fine if observations in the bootstrap resamples series duplicates.
-        }
-    }
-}
-
-
-findbestLandR <- function(  # Finds the optimal L and R values via grid search. It uses the AIC for finding the best {L, R} pair.
-    Ls,
-    Rs,
-    period,
-    depth,
-    duration,
-    ...
-) {
-    # *** CAUTION: Do not use this code with large Ls and Rs lengths. It is only meant to compare a few L and R pairs and not for large scale tuning ***
-
-    stopifnot(exprs={
-        length(Ls) == length(Rs)
-    })
-    minAIC <- Inf
-    bestLR <- NULL
-    for (i in 1:length(Ls)) {
-        result <- evd(period, depth, duration, Ls[i], Rs[i], ...)
-        aic <- result[2]
-        if (aic < minAIC) {
-            minAIC = aic
-            bestLR <- c(Ls[i], Rs[i])
-        }
-    }
-    return (bestLR)
-}
-
 smallestPlanetDetectableTest <- function(  # This function returns the smallest planet detectable (in terms of transit depth) using the FAP criterion.
     period,  # a single period, in days.
     depths,  # vector of depths for which FAP needs to be calculated, each in %. An example: c(0.1, 0.08, 0.06, 0.04, 0.02, 0.015, 0.012, 0.01, 0.005)
@@ -536,5 +480,20 @@ periodDurationDepthTest <- function(
     }
 }
 
-################# Questions not yet understood by me ##################
-# (1) What is "high quantiles of a distribution"? See online where mainly talk about heavy-tailed distributions..
+
+################################## RESOURCES ##################################
+############## IMPORTANT REFERENCES #############
+# http://quantdevel.com/BootstrappingTimeSeriesData/BootstrappingTimeSeriesData.pdf (About bootstrapping in time-series data).
+# http://www.ccpo.odu.edu/~klinck/Reprints/PDF/omeyHUB2009.pdf (suggested by Suveges, 2014).
+# See about aliasing at the end of this page, for example: https://docs.gammapy.org/0.8/time/period.html and this also: https://hea-www.harvard.edu/~swolk/thesis/period/node5.html
+# See discussion on period/frequency spacing considerations for BLS: https://johnh2o2.github.io/cuvarbase/bls.html#period-spacing-considerations
+# Mathematical description of the Anderson-Darling test: https://bookdown.org/egarpor/NP-UC3M/nptests-dist.html
+
+########### Resources for extreme value statistics ##########
+# (1) http://personal.cityu.edu.hk/xizhou/first-draft-report.pdf
+# (2) Playlist on Extreme Value Statistics: https://youtube.com/playlist?list=PLh35GyCXlQaTJtTq4OQGzMblwEcVIWW9n
+# https://www.lmd.ens.fr/E2C2/class/naveauRomaniaE2C207.pdf
+
+#############################################################
+# Good set of papers: https://arxiv.org/pdf/1712.00734.pdf
+

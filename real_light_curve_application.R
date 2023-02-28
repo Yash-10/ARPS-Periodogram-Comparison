@@ -1,6 +1,17 @@
+#################################################################################################
+# Aim: This script reads all the four DTARPS TESS light curves showed in our paper, runs the
+# extreme value code on each, and then plots the results.
+
+# This code also provides an example of how to use our code on real light curves.
+
+#################################################################################################
+
 source('eva_periodogram.R')
 source('bls_and_tcf_periodogram_show.R')
 
+seedValue <- 465
+
+# Read the TESS light curves stored in .txt files.
 tables <- list()
 filenames <- c()
 list_of_files <- list.files("./", pattern=glob2rx("DTARPS*_lc.txt"))
@@ -11,6 +22,7 @@ for (file in list_of_files) {
     filenames <- c(filenames, file)
 }
 
+# Create an empty dataframe to store results.
 results = data.frame(matrix(nrow=0, ncol=10))
 
 # Assign column names
@@ -30,18 +42,18 @@ for (i in 1:length(tables)) {
         }
 
         if (algo == "BLS") {
-            result <- evd(y=table_BLS$Flux, t=table_BLS$times, algo=algo, FAPSNR_mode=0, lctype="real", applyGPRforBLS=FALSE)
+            result <- evd(y=table_BLS$Flux, t=table_BLS$times, algo=algo, FAPSNR_mode=0, lctype="real", applyGPRforBLS=TRUE, seedValue=seedValue)
             fap <- result[1]
             perResults <- result[3:5]
-            result <- evd(y=table_BLS$Flux, t=table_BLS$times, algo=algo, FAPSNR_mode=1, lctype="real", applyGPRforBLS=FALSE)
+            result <- evd(y=table_BLS$Flux, t=table_BLS$times, algo=algo, FAPSNR_mode=1, lctype="real", applyGPRforBLS=TRUE, seedValue=seedValue)
             snr <- 1 / result[1]
             rt <- c(rt, c(fap, snr, perResults))
         }
         else {
-            result <- evd(y=table$Flux, t=table$times, algo=algo, FAPSNR_mode=0, lctype="real")
+            result <- evd(y=table$Flux, t=table$times, algo=algo, FAPSNR_mode=0, lctype="real", seedValue=seedValue)
             fap <- result[1]
             perResults <- result[3:5]
-            result <- evd(y=table$Flux, t=table$times, algo=algo, FAPSNR_mode=1, lctype="real")
+            result <- evd(y=table$Flux, t=table$times, algo=algo, FAPSNR_mode=1, lctype="real", seedValue=seedValue)
             snr <- 1 / result[1]
             rt <- c(rt, c(fap, snr, perResults))
         }
@@ -56,7 +68,7 @@ print("==================================")
 print(results)
 print("==================================")
 
-write.csv(x=results, file="real_lc_bls_and_tcf_compare.csv")
+write.csv(x=results, file="real_lc_bls_and_tcf_compare_gpr.csv")
 
 # Show periodograms
 # blsAndTCF(y=table_1$flux, t=table_1$times, lctype="real", useOptimalFreqSampling=TRUE)

@@ -1,4 +1,16 @@
-## Utility functions.
+#################################################################################################
+# Aim: Contains utility functions used in other R scripts.
+
+# Notes:
+# 1. Limitation of the function getLightCurve:
+    #  - Both the duration (in hours) and the period (in days) must be either integer or
+    # half-integer because the code requires two times the duration and period to be an integer.
+# 2. **Important**
+#    - The arguments ar, ma, and order are obsolete. The getLightCurve function, to which these
+#      were intended to passed have these values harcoded inside that function. So passing
+#      different values will not have any difference.
+#################################################################################################
+
 library(forecast)
 library(reticulate)
 library('microbenchmark')
@@ -6,9 +18,6 @@ library('kernlab')
 library(moments)
 
 source_python("python_utils.py")
-
-
-###### Note: Multiply the depth value by 100 to get the depth in % ######
 
 getLightCurve <- function(
     period,  # What period (in days) do you want to have in your light curve, will be a single value. eg: 1/3/5/7/9.
@@ -27,9 +36,6 @@ getLightCurve <- function(
     checkConditions=TRUE,  # Whether to perform small unit tests within the code to ensure the output is as expected. Recommended: Set to TRUE for almost all cases, but added this option so that `uniroot` does not throw error when finding the limiting depth - see below functions.
     seedValue=1
 ) {
-    # *** IMPORTANT LIMITATION OF THIS FUNCTION ***
-    # -> Both the duration (in hours) and the period (in days) must be either integer or half-integer because the code requires two times the duration and period to be an integer.
-    # *********************************************
     if (checkConditions) {
         stopifnot(exprs = {
             period > 0
@@ -78,6 +84,7 @@ getLightCurve <- function(
     tIncrement <- 1 / res
     t <- seq(from = 0, by = tIncrement, length.out = length(y))
 
+    # Add noise to the simulated transits.
     if (noiseType == 1) {
         set.seed(seedValue)
         noise <- rnorm(length(y), mean = 0, sd = gaussStd)
@@ -107,6 +114,7 @@ getLightCurve <- function(
         })
     }
 
+    # Print information about the light curve created.
     print(sprintf('Length of time series = %d', length(y)))
 
     # Print some things
@@ -119,40 +127,20 @@ getLightCurve <- function(
     return (list(y, t, noiseStd, noiseIQR))
 }
 
-getStandardPeriodogram <- function(
-    period,  # What period (in days) do you want to have in your light curve, will be a single value. eg: 1/3/5/7/9.
-    depth,  # What depth (in % of the star's presumed constant level which is 1) do you want to have in your light curve, will be a vector. eg: 0.01/0.05/0.1/0.15/0.2.
-    duration,  # What transit duration (in hours) do you want to have in your light curve. eg: 1/24.
-    # Note: The definition of transit duration used in the code is how many points there are at the in-transit level whereas in astronomy it is, how many points are there before you reach the constant value again taking into account points in going from 1 --> inTransitValue.
-    noiseType=0,  # 1 --> Gaussian noise, 2 --> Autoregressive noise. If autoregressive noise, (1, 0, 1) model is used. To change it, need to change the source code.
-    ntransits=10,  # No. of transits in the whole time series. Note: It must be >=3, otherwise BLS/TCF matching filter periodograms might not work.
-    ### VIMP note: While giving inputs, never give a period like 1 since duration would be a fraction of 1 which is a float number and since the code rounds the result, results might not be correct.
-    ### To prevent such issues, if your `duration` is, say, 1/24 times the period (eg: 1 hr duration for a 1 day period), then pass period = 24 and duration = 1/24 instead of period = 1 and duration = 1/24.
-    algo="BLS"  # or "TCF"
-){
-
-    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits)
-
-    output <- standardPeriodogram(unlist(yt[1]), unlist(yt[2]), period, depth, duration, algo=algo, noiseType = 0, plot=FALSE)  # 0 noise type we add custom noise in this function, so we should not add it again.
-    return (output);
-}
-
+# Function to get ARIMA residuals ready for use with TCF.
 getResidForTCF <- function(
     y  # Time series (must not be differenced because it is done internally).
 ) {
     max.p = 5
     max.q = 5
     max.d = 0
-    ARIMA.fit = auto.arima(diff(y), stepwise=FALSE, approximation=FALSE, seasonal=FALSE, max.p=max.p, max.q=max.q, max.d=max.d) #leave d as 0. 
+    ARIMA.fit = auto.arima(diff(y), stepwise=FALSE, approximation=FALSE, seasonal=FALSE, max.p=max.p, max.q=max.q, max.d=max.d) # leave d as 0. 
     print(ARIMA.fit)
-    # Simple statistics of ARIMA residuals
-    # plot(diff(y), col='black', type='l')
-    # lines(fitted(ARIMA.fit), col='red')
-    # return (1)
     ARIMA.resid = residuals(ARIMA.fit)
     return (ARIMA.resid)
 }
 
+# Function to get ARMA residuals.
 getARMAresid <- function(
     y
 ) {
@@ -161,12 +149,10 @@ getARMAresid <- function(
     max.d = 0
     ARMA.fit = auto.arima(y, stepwise=FALSE, approximation=FALSE, seasonal=FALSE, max.p=max.p, max.q=max.q, max.d=max.d, d=0) #leave d as 0. 
     ARMA.resid = residuals(ARMA.fit)
-    # plot(y, col='black', type='l')
-    # lines(fitted(ARMA.fit), col='red')
-    # plot(ARMA.resid)
     return (ARMA.resid)
 }
 
+# Function to get Gaussian Processes Regression residuals.
 getGPRResid <- function(
     t, y
 ) {
@@ -176,7 +162,8 @@ getGPRResid <- function(
     return (y)
 }
 
-plot_folded_lc <- function(lc, bestper)
+# Function for folding a light curve at a given period.
+plot_folded_lc <- function(lc, bestper)  # bestper is the period at which you want to fold the light curve.
 {  
     Phase = (lc[,1] - min(lc[,1], na.rm=TRUE)) %% bestper / bestper
     Range_lc = 1.3*diff(range(lc[,2], na.rm=TRUE)) + min(lc[,2], na.rm=TRUE)
@@ -190,14 +177,35 @@ plot_folded_lc <- function(lc, bestper)
     text(0.5, Text0.pos, "Phase-folded light curve", pos=1, cex=1.2)
 }
 
+createLCforBLSFitShow <- function(period=2, duration=2, res=2, ofac=2) {
+    yt <- getLightCurve(period, 0.0265, duration, noiseType=2, seedValue=42)
+    df <- data.frame(y=yt[[1]], t=yt[[2]]/24, err=rep(0, length(yt[[1]])))
+    df <- df[, c(2, 1, 3)]
+    # df[,1] <- 1518.411165649 + df[,1]/24
+    dff <- read.table('DTARPS176685457_lc.txt')
+    df[,1] <- dff[,1][1:1071]
+    df[,3] <- df[,3] + 0.004216937
+    write.table(df, "cc.transit", col.names=FALSE, row.names=FALSE, quote=FALSE)
+
+    t <- unlist(yt[2])
+    y <- unlist(yt[[1]])
+    freqs <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=FALSE, algo="BLS", lctype="sim")
+    print(min(freqs))
+    print(max(freqs))
+    print(length(freqs))
+    print(round(length(y)*0.1))
+    return (freqs)
+}
+
+# Function to create the frequency grid used for computing the BLS and TCF periodograms.
 getFreqGridToTest <- function(
-    t,  # Observation epochs.
+    t,  # Observation epochs (or the time values).
     period=NULL, duration=NULL,
     res=2,  # This the resolution in the time series that controls the candence. res=2 means cadence of 30 min and res=1 means 1hr, for example.
     ofac=1,  # Oversampling factor for frequency selection.
     useOptimalFreqSampling=FALSE,
-    algo="BLS",
-    lctype="sim"
+    algo="BLS",  # Either BLS or TCF.
+    lctype="sim"  # Either real or sim.
 ) {
     ### Create a frequency grid.
     ## Ofir, 2014 - optimal frequency sampling - notes ##
@@ -243,10 +251,13 @@ getFreqGridToTest <- function(
     return (freqGrid);
 }
 
+# Function to calculate the SNR of the periodogram peak. This automatically selects the highest peak and calculates SNR
+# in a region around the peak. That region is defined by the argument oneSideWindowLength, which is set to 1500 by default.
+# This means a window of 2*1500 = 3000 periods will be used as the region around the peak.
 calculateSNR <- function(  # TODO: For making this more efficient, compute trend fit only for region around the periodogram peak - will save some time.
     periods,  # The periods at which the periodogram is computed.
     periodogramPower,  # This power must not be detrended since it is done internally.
-    lambdaTrend=1,
+    lambdaTrend=1,  # Parameter passed to cobs.
     oneSideWindowLength=1500  # NOTE: This is one side, the actual window length will be 2*oneSideWindowLength.
 ) {
     cobsTrend <- cobs(log10(periods), periodogramPower, ic='BIC', tau=0.5, lambda=lambdaTrend)
@@ -273,6 +284,7 @@ calculateSNR <- function(  # TODO: For making this more efficient, compute trend
     return (snr)
 }
 
+# Using the microbenchmark CRAN package, this allows timing the periodogram run - BLS or TCF.
 timeAnalysis <- function(
     period, depth=0.01, duration=2, noiseType=1, ntransits=10,
     gaussStd=1e-4, ar=0.2, ma=0.2, res=2, order=c(1, 0, 1), algo="BLS",
@@ -316,20 +328,7 @@ timeAnalysis <- function(
     }
 }
 
-# divide <- function(vec, n, min_spacing = 1) {  # Below approach to ensure the selected L frequencies are spaced by atleast the oversampling factor is taken from https://stackoverflow.com/a/66036847:
-#     unname(tapply(vec, ceiling(seq_along(vec) / min_spacing), sample, size = 1))
-#     # head(u[seq(1, length(u), by = 2)], n)
-# }
-
-# divide <- function(vec, n, min_spacing = 2) {
-#   idx <- seq_along(vec)
-#   repeat {
-#     k <- sort(sample(idx,n))
-#     if (all(diff(k)>=min_spacing)) break
-#   }
-#   vec[k]
-# }
-
+# Function to divide the frequency grid (freqGrid) into K*L frequencies used in the extreme value application.
 freqdivideFreqGrid <- function(freqGrid, L, K, seedValue=1) {
     set.seed(seedValue)  # Set seed for reproducibility.
 
@@ -344,93 +343,3 @@ freqdivideFreqGrid <- function(freqGrid, L, K, seedValue=1) {
     KLfreqs <- rand_parts(freqConsider, n=L, l=K)
     return (unlist(KLfreqs))
 }
-
-
-findAGoodOfac <- function() {  # This function is just a quick, rough method, not intended to use for sophisticated analyses. 
-    hwhms <- c()
-    things<-list(c(3, 0.01, 1/36), c(3, 0.005, 1/36), c(5, 0.01, 1/60), c(5, 0.005, 1/60), c(7, 0.01, 1/84), c(7, 0.005, 1/84), c(11, 0.005, 1/132))
-    for (thing in things) {
-        yt <- getLightCurve(thing[1], thing[2], thing[3], noiseType=1, ntransits=10, gaussStd=gaussStd, ar=ar, ma=ma, order=order, res=res, checkConditions=TRUE)
-        y <- unlist(yt[1])
-        t <- unlist(yt[2])
-        freqGrid <- getFreqGridToTest(t, res=2, ofac=1, useOptimalFreqSampling=FALSE, algo="TCF")
-        output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
-
-        # fstep <- (max(freqGrid) - min(freqGrid)) / length(freqGrid)
-        # freqs <- seq(from = min(freqGrid), by = fstep, length.out = length(freqGrid))
-        # periodsToTry <- 1 / freqs
-        # residTCF <- getResidForTCF(y)
-        # output <- tcf(residTCF, p.try = periodsToTry * res, print.output = TRUE)
-
-        out<-output$spec
-        ptest<-output$periodsTested
-        i<-which.max(out)
-        l<-i-100
-        u<-i+100
-        plot(1/ptest[l:u], out[l:u])
-        hwhm_ <- fwhm(1/ptest[l:u], out[l:u])/2
-        hwhms <- append(hwhms, hwhm_)
-        print("hwhm")
-        print(hwhm_)
-    }
-    print(hwhms)
-    print("mean")
-    print(mean(hwhms))
-}
-
-### Store ###
-    # This is the earlier code (that did not work well), to divide the frequency grid into K*L frequencies.
-    # # Divide the frequency into L bins, each with K datapoints.
-    # ## From https://stackoverflow.com/questions/57889573/how-to-randomly-divide-interval-into-non-overlapping-spaced-bins-of-equal-lengt
-    # intervalLength <- length(freqGrid)
-    # nBins <- L
-    # binWidth <- K
-    # binMinDistance <- 1
-    # spaceToDistribute <- intervalLength - (nBins * binWidth + (nBins - 1) * binMinDistance)
-    # distances <- diff(floor(c(0, sort(runif(nBins))) * spaceToDistribute))
-    # startOfBin <- cumsum(distances) + (0:(nBins-1)) * 101
-    # KLinds <- data.frame(bin = 1:nBins, startOfBin = startOfBin, endOfBin = startOfBin + binWidth - 1)
-
-    # stopifnot(exprs={  # Check if the no. of frequencies in a bin is in fact equal to the desired number.
-    #     length(freqGrid[KLinds[1, 2]:KLinds[1, 3]]) == binWidth
-    # })
-
-    # KLfreqs <- c()
-    # for (i in 1:nrow(KLinds)) {
-    #     Kfreqs <- freqGrid[KLinds[i, 2]:KLinds[i, 3]]
-    #     KLfreqs <- append(KLfreqs, Kfreqs)
-    # }
-    # return (KLfreqs);
-
-    # Store (2):
-    # freqdivideFreqGrid <- function(freqGrid, L, K) {
-    # # set.seed(1)  # Set seed for reproducibility.
-
-    # if ((K %% 2) == 0) {
-    #     safeDist <- 1 + K/2  # 1 is added just to be more safe at the edges of the frequency grid. This is just a hackery.
-    # }
-    # else {
-    #     safeDist <- 1 + (K-1)/2  # 1 is added just to be more safe at the edges of the frequency grid. This is just a hackery.
-    # }
-    # endIndex <- length(freqGrid) - safeDist
-    # freqConsider <- freqGrid[safeDist:endIndex]
-    # # LcentralFreqs <- divide(freqConsider, n=L, min_spacing=K+1)
-    # LcentralFreqs <- sample(freqConsider, L, replace=FALSE, prob=rep(1/length(freqConsider), length(freqConsider)))  # replace=FALSE to prevent sampling the same frequency again. According to Suveges, each of the L central freqeuencies is selected with equal probability, so we pass an equal probability vector.
-    # KLfreqs <- c()
-    # for (i in 1:length(LcentralFreqs)) {
-    #     index <- match(LcentralFreqs[i], freqGrid)
-    #     if ((K %% 2) == 0) {
-    #         k_ <- as.integer(K/2)
-    #         lowerIndx <- index-k_
-    #         upperIndx <- index+(K-k_-1)
-    #         KLfreqs <- append(KLfreqs, freqGrid[lowerIndx:upperIndx])
-    #     }
-    #     else {
-    #         kminusonehalf <- as.integer((K-1) / 2)
-    #         lowerIndx <- index-kminusonehalf
-    #         upperIndx <- index+kminusonehalf
-    #         KLfreqs <- append(KLfreqs, freqGrid[lowerIndx:upperIndx])
-    #     }
-    # }
-    # return (KLfreqs);
-# }

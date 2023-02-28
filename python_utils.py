@@ -1,7 +1,6 @@
-import random
-# import lightkurve
-# from lightkurve import LightCurve
+# Python utility function used in R scripts.
 
+import random
 
 def rand_parts(seq, n, l):
     """Extracts `n` random contiguous sub-sequences from `seq`, each of length `l`.
@@ -26,9 +25,3 @@ def rand_parts(seq, n, l):
         result.append(seq[i:i+l])
         offset += l - 1
     return result
-
-
-# def fold_lc(lc, t, period):
-#     Lc = LightCurve(flux=lc, time=t)
-#     folded = Lc.fold(period=period, epoch_time=0, epoch_phase=0)
-#     return folded

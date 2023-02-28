@@ -1,13 +1,22 @@
-# ---------------------------------------------------------------------------------------------------------
-# bls_and_tcf_periodogram_show.R : This plots the BLS and TCF periodograms in a single plot for comparison.
-# ---------------------------------------------------------------------------------------------------------
+#################################################################################################
+# bls_and_tcf_periodogram_show.R : This plots the BLS and TCF periodograms in a single plot for
+# comparison.
+#
+# Notes:
+# 1. **Important**
+#    - The arguments ar, ma, and order are obsolete. The getLightCurve function, to which these
+#      were intended to passed have these values harcoded inside that function. So passing
+#      different values will not have any difference.
+#################################################################################################
 
+source('BLS/bls.R')
+source('TCF3.0/intf_libtcf.R')
 source('utils.R')
 
 blsAndTCF <- function(
     period=NULL, depth=NULL, duration=NULL, y=NULL, t=NULL, noiseType=1, ntransits=10, res=2, ofac=2,
-    gaussStd=1e-4, ar=0.2, ma=0.2, order=c(1, 0, 1), showFAP=FALSE, useOptimalFreqSampling=TRUE, lctype="sim",
-    applyGPRforBLS=FALSE
+    gaussStd=1e-4, ar=0.2, ma=0.2, order=c(1, 0, 1), useOptimalFreqSampling=TRUE, lctype="sim",
+    applyGPRforBLS=FALSE, seedValue=42, L=300, R=300
 ) {
     # Perform some checks.
     if (lctype == "sim" && (is.null(period) | is.null(depth) | is.null(duration))) {
@@ -105,12 +114,21 @@ blsAndTCF <- function(
     bnormalizedPeriodogram <- bperiodogramTrendRemoved / bcobsScatter$fitted
     tnormalizedPeriodogram <- tperiodogramTrendRemoved / tcobsScatter$fitted
 
-    if (showFAP) {
-        # Call extreme value analysis code.
-        result <- evd(period, depth, duration, noiseType=noiseType, algo=algo, ofac=ofac, L=L, R=R, res=res, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order)
-        print(sprintf("FAP = %.10f", result[1]))
-        fap <- result[1]
+    # Call extreme value analysis code.
+    if (lctype == 'sim') {
+        resultBLS <- evd(period, depth, duration, noiseType=noiseType, algo='BLS', ofac=ofac, L=L, R=R, res=res, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, FAPSNR_mode=0, seedValue=seedValue, lctype=lctype)
+        resultTCF <- evd(period, depth, duration, noiseType=noiseType, algo='TCF', ofac=ofac, L=L, R=R, res=res, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, FAPSNR_mode=0, seedValue=seedValue, lctype=lctype)
+        fapBLS <- resultBLS[1]
+        fapTCF <- resultTCF[1]
     }
+    else if (lctype == 'real') {
+        resultBLS <- evd(y=y_BLS, t=t_BLS, noiseType=noiseType, algo='BLS', ofac=ofac, L=L, R=R, res=res, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, FAPSNR_mode=0, seedValue=seedValue, lctype=lctype)
+        resultTCF <- evd(y=y, t=t, noiseType=noiseType, algo='TCF', ofac=ofac, L=L, R=R, res=res, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, FAPSNR_mode=0, seedValue=seedValue, lctype=lctype)
+        fapBLS <- resultBLS[1]
+        fapTCF <- resultTCF[1]
+    }
+
+    png(filename="real_4.png", width = 500, height = 250, units='mm', res = 300)
 
     par("mar" = c(5, 6, 4, 2), cex=15)
 
@@ -129,11 +147,10 @@ blsAndTCF <- function(
     bpergram <- boutput$spec
     tpergram <- toutput$outpow
 
-    plot(t, y, type='l', main= if (lctype == 'sim') sprintf("Period: %.1f days, depth: %.3f (pct), duration: %.1f (hrs)", period, depth, duration) else 'DTARPS89020549', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)', ylab='normalized flux')
+    plot(t, y, type='l', main= if (lctype == 'sim') sprintf("Period: %.1f days, depth: %.3f (pct), duration: %.1f (hrs)", period, depth, duration) else 'TESS 4', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (hrs)', ylab='normalized flux')
     acfEstimate <- acf(y, plot = FALSE, na.action = na.pass)
     lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
     n <- length(acfEstimate$acf)
-    plot(acfEstimate)
     # plot(
     #     acfEstimate$acf[2:n], main=sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f", lJStats[3], acfEstimate$acf[[2]]), cex=2, type="h", 
     #     xlab="Lag",     
@@ -142,31 +159,38 @@ blsAndTCF <- function(
     #     las=1,
     #     xaxt="n"
     # )
-    abline(h=0)
-    # Add labels to the x-axis
-    x <- c(1:n)
-    yy <- c(1:n)
-    axis(1, at=x, labels=yy)
+    # abline(h=0)
+    # # Add labels to the x-axis
+    # x <- c(1:n)
+    # yy <- c(1:n)
+    # axis(1, at=x, labels=yy)
+
+    plot(acfEstimate, main=sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f", lJStats[3], acfEstimate$acf[[2]]), cex=2)
 
     plot(bcobsxy50$x, bpergram, type = 'l', main="BLS periodogram", log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-    lines(bcobsxy50$x, bcobsxy50$fitted, type = 'l', col='red')
+    lines(bcobsxy50$x, bcobsxy50$fitted, type = 'l', col='red', lwd=3.0)
     # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
     # lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
     rug(bcobsxy50$knots)
-    legend("topleft", lty = 1, 
-        col= c("red"), text.col = "black", 
-        legend=c("trend fit"), bty="n"
-    )
-    text(100, 100, "Phase-folded light curve", cex=1.2)
+    # legend("topleft", lty = 1, 
+    #     col= c("red"), text.col = "black", 
+    #     legend=c("trend fit"), bty="n"
+    # )
+    # text(100, 100, "Phase-folded light curve", cex=1.2)
+
+    text(7, 1.85e-4, sprintf("SNR = %.2f, FAP = %.2e", calculateSNR(boutput$periodsTested, bpergram), fapBLS), cex=1.5)
+
     plot(tcobsxy50$x, tpergram, type = 'l', main="TCF periodogram", log='x', xlab='Period (hrs) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-    lines(tcobsxy50$x, tcobsxy50$fitted, type = 'l', col='red')
+    lines(tcobsxy50$x, tcobsxy50$fitted, type = 'l', col='red', lwd=3.0)
     # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
     # lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
     rug(tcobsxy50$knots)
-    legend("topleft", lty = 1, 
-        col= c("red"), text.col = "black", 
-        legend=c("trend fit"), bty="n"
-    )
+    # legend("topleft", lty = 1, 
+    #     col= c("red"), text.col = "black", 
+    #     legend=c("trend fit"), bty="n"
+    # )
+
+    text(7, 125, sprintf("SNR = %.2f, FAP = %.2e", calculateSNR(tperiodsToTry * res, tpergram), fapTCF), cex=1.5)
 
     plot.new()  # Just show an empty plot.
 
@@ -193,21 +217,20 @@ blsAndTCF <- function(
     # n * sum((x - mean(x))^4)/(sum((x - mean(x))^2)^2)
     # ``` Taken from https://stackoverflow.com/a/21484052
     tSkewnessBefore <- skewness(tpergram)
-    tKurtosisBefore <- kurtosis(tpergram)
 
-    if (showFAP) {
-        plot(bhist.data$count, type='h', log='y', main=sprintf('BLS periodogram histogram, FAP: %s', formatC(fap, format = "e", digits = 5)), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
-        axis(1, at=1:length(bhist.data$mids), labels=bhist.data$mids)
-        plot(thist.data$count, type='h', log='y', main=sprintf('TCF periodogram histogram, FAP: %s', formatC(fap, format = "e", digits = 5)), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
-        axis(1, at=1:length(thist.data$mids), labels=thist.data$mids)
-    }
-    else {
-        plot(bhist.data$count, type='h', log='y', main=sprintf('BLS periodogram histogram'), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
-        axis(1, at=1:length(bhist.data$mids), labels=bhist.data$mids)
-        plot(thist.data$count, type='h', log='y', main=sprintf('TCF periodogram histogram'), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
-        axis(1, at=1:length(thist.data$mids), labels=thist.data$mids)
-    }
+    plot(bhist.data$count, type='h', log='y', main=sprintf('BLS periodogram histogram'), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+    axis(1, at=1:length(bhist.data$mids), labels=bhist.data$mids)
+    plot(thist.data$count, type='h', log='y', main=sprintf('TCF periodogram histogram'), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+    axis(1, at=1:length(thist.data$mids), labels=thist.data$mids)
+    tKurtosisBefore <- kurtosis(tpergram)
 
     print(calculateSNR(tperiodsToTry * res, tpergram))
     print(calculateSNR(boutput$periodsTested, bpergram))
+
+    dev.off()
 }
+
+# 7, 5.2e-4; 7, 142
+# 12, 4.8e-5; 7, 370
+# 300, 1.6e-4; 300, 283
+# 
