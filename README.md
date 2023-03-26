@@ -2,6 +2,11 @@
 
 This repository contains R code for comparing the [BLS](https://www.aanda.org/articles/aa/abs/2002/31/aa2422/aa2422.html) and [TCF](https://iopscience.iop.org/article/10.3847/1538-3881/ab26b8) transit periodogram algorithms. It can be extended for comparing any set of periodograms. It uses extreme value theory and/or signal-to-noise ratio (SNR) for comparison.
 
+ARPS stands for Autoregessive Planet Search. This work is an effort made as part of the ARPS project.
+
+**Motivation for this work**\
+Small transiting exoplanets are hard to detect via the transit method. The BLS periodogram has been the most popular choice for periodicity search. We want to inspect whether comparing periodograms using statistical approaches can allow us to optimize small transiting exoplanet search in future missions, e.g., [PLATO](https://platomission.com/), by selecting the most appropriate periodogram for a given case. While several variants/alternatives to BLS have been proposed since the BLS paper in 2002, we restrict the comparison between BLS and TCF for simplicity.
+
 ## Installation
 
 1. Clone the repository
