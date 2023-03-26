@@ -44,6 +44,8 @@ The `evd` function can be run on a set of transit depths for different periodogr
 
 ![ntransits_comparison_BLS_and_TCF](images/ntransits_BLS_TCF.png)
 
+For more details, please see our paper.
+
 ## Code motivation
 The extreme value part of the code is a replication of the approach described in [Süveges (2014)](https://academic.oup.com/mnras/article/440/3/2099/1077179). This code is not an official implementation of that paper.
 
