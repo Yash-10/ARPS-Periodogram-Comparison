@@ -127,6 +127,9 @@ standardPeriodogram <- function(
     # Create frequency grid.
     freqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo, lctype=lctype)
 
+    print(min(freqGrid))
+    print(max(freqGrid))
+
     stopifnot(exprs={
         all(freqGrid <= res / 2)
     })
@@ -154,6 +157,15 @@ standardPeriodogram <- function(
         # Run TCF on ARIMA residual.
         output <- tcf(residTCF, p.try = periodsToTry*res, print.output = TRUE)
         # output$inper = output$inper / 2
+
+        # lst <- sort(output$outpow, index.return=TRUE, decreasing=TRUE)
+        # lstt <- lapply(lst, `[`, lst$x %in% head(unique(lst$x),16))
+        # print("============")
+        # for (x in lstt$ix) {
+        #     print(output$outpow[x])
+        #     print(periodsToTry[x]/24)
+        # }
+        # print("==============")
     }
 
     # (1) Remove trend in periodogram

@@ -136,6 +136,7 @@ getResidForTCF <- function(
     max.d = 0
     ARIMA.fit = auto.arima(diff(y), stepwise=FALSE, approximation=FALSE, seasonal=FALSE, max.p=max.p, max.q=max.q, max.d=max.d) # leave d as 0. 
     print(ARIMA.fit)
+    # return (ARIMA.fit)
     ARIMA.resid = residuals(ARIMA.fit)
     return (ARIMA.resid)
 }
@@ -160,6 +161,22 @@ getGPRResid <- function(
     predicted_y <- predict(gp, t)
     y <- y - predicted_y
     return (y)
+}
+
+undifferenceATimeSeries <- function(
+    differenced,  # The differenced time series.
+    orig_first_observation  # The first observation value in the original time series.
+    # This original time series is the one that we want to predict. But this function assumes the user
+    # themselves differenced the original light curve, in which case the user would have access to the first value.
+) {
+    undifferenced <- c()
+    undifferenced <- c(undifferenced, orig_first_observation)
+    undiff_value <- undifferenced[1]
+    for (i in 1:length(differenced)) {
+        undiff_value <- undiff_value + differenced[i]
+        undifferenced <- c(undifferenced, undiff_value)
+    }
+    return (undifferenced)
 }
 
 # Function for folding a light curve at a given period.

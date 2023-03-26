@@ -93,9 +93,11 @@ blsAndTCFDepthChange <- function(
     resultTCF <- evd(period, depth, duration, noiseType=noiseType, algo='TCF', ofac=ofac, L=L, R=R, res=res, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, FAPSNR_mode=0, seedValue=seedValue)
     fapBLS <- resultBLS[1]
     fapTCF <- resultTCF[1]
+    perResultsBLS <- resultBLS[2:4]
+    perResultsTCF <- resultTCF[2:4]
 
     # par("mar" = c(5, 6, 4, 2), cex=15)
-    png(filename="depth_change_ar_0.04.png", width = 420, height = 210, units='mm', res = 300)
+    png(filename="depth_change_ar_0.026.png", width = 420, height = 210, units='mm', res = 300)
     par(mar=c(5,6,4,2), cex=15)
 
     cexVal <- 2.0
@@ -115,12 +117,12 @@ blsAndTCFDepthChange <- function(
     bpergram <- boutput$spec
     tpergram <- toutput$outpow
 
-    plot(t/24, y, type='l', main=sprintf("Period: %.1f days, depth: %.1f ppm, duration: %.1f hrs | Noise: Gaussian", period, depth*1e4, duration), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (days)', ylab='normalized flux')
+    plot(t/24, y, type='l', main=sprintf("Period: %.1f days, Depth: %.1f ppm, Duration: %.1f hrs | Noise: Autoregressive", period, depth*1e4, duration), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='Time (days)', ylab='Flux')
     # acfEstimate <- acf(y, plot = FALSE)
     # lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
     # n <- length(acfEstimate$acf)
     # plot(
-    #     acfEstimate$acf[2:n], main=sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f", lJStats[3], acfEstimate$acf[[2]]), cex=2, type="h", 
+    #     acfEstimate$acf[2:n], main=sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f", lJStats[3], acfEstimate$acf[[2]]), cex=2, type="h", 
     #     xlab="Lag",     
     #     ylab="ACF", 
     #     ylim=c(-0.2,0.2), # this sets the y scale to -0.2 to 0.2
@@ -135,9 +137,9 @@ blsAndTCFDepthChange <- function(
 
     acfEstimate <- acf(y, plot = FALSE, na.action = na.pass)
     lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
-    plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-    mtext(sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.1)
-    # plot(acfEstimate, main=sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f", lJStats[3], acfEstimate$acf[[2]]), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, cex=cexVal)
+    plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlim=c(1, 20), ylim=c(-0.2, +0.5))
+    text(10, 0.36, sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.9)
+    # plot(acfEstimate, main=sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f", lJStats[3], acfEstimate$acf[[2]]), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, cex=cexVal, xlim=c(1, 20), ylim=(-0.2, +0.5))
 
     plot(bcobsxy50$x/24, bpergram, type = 'l', main="BLS periodogram", log='x', xlab='Period (days) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
     lines(bcobsxy50$x/24, bcobsxy50$fitted, type = 'l', col='red', lwd=3.0)
@@ -149,7 +151,8 @@ blsAndTCFDepthChange <- function(
     #     col= c("red"), text.col = "black", 
     #     legend=c("trend fit"), bty="n", cex=1.5, pt.cex = 1
     # )
-    text(6.2/24, 7.6e-5, sprintf("SNR = %.1f, FAP = %.1e", calculateSNR(boutput$periodsTested, bpergram), fapBLS), cex=cexVal)
+    text(0.08, 5.4e-5, paste0(sprintf("SNR = %.1f, FAP = %.1e", calculateSNR(boutput$periodsTested, bpergram), fapBLS)), cex=1.9, adj=0)
+    text(3.5, 1e-5, paste0(sprintf("Period = %.5f days\nDepth = %.1f", perResultsBLS[1]/24, perResultsBLS[2]*1e6), " ppm"), cex=1.9, adj=0)
     plot(tcobsxy50$x/24, tpergram, type = 'l', main="TCF periodogram", log='x', xlab='Period (days) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
     lines(tcobsxy50$x/24, tcobsxy50$fitted, type = 'l', col='red', lwd=3.0)
     # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
@@ -159,7 +162,7 @@ blsAndTCFDepthChange <- function(
     #     col= c("red"), text.col = "black", 
     #     legend=c("trend fit"), bty="n", cex=1.5, pt.cex = 1
     # )
-    text(6.2/24, 220, sprintf("SNR = %.1f, FAP = %.1e", calculateSNR(tperiodsToTry * res, tpergram), fapTCF), cex=cexVal)
+    text(0.08, 105, paste0(sprintf("SNR = %.1f, FAP = %.1e\nPeriod = %.5f days, Depth = %.1f", calculateSNR(tperiodsToTry * res, tpergram), fapTCF, perResultsTCF[1]/24, perResultsTCF[2]*1e6), " ppm"), cex=1.9, adj=0)
 
     print(calculateSNR(tperiodsToTry * res, tpergram))
     print(calculateSNR(boutput$periodsTested, bpergram))
@@ -189,9 +192,9 @@ blsAndTCFDepthChange <- function(
     tSkewnessBefore <- skewness(tperiodogramTrendRemoved)
 
     plot(bhist.data$count, type='h', log='y', main=sprintf('BLS periodogram (detrended) histogram'), cex=cexVal, cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
-    axis(1, at=1:length(bhist.data$mids), labels=bhist.data$mids, cex.axis=cexVal)
+    axis(1, at=1:length(bhist.data$mids), labels=sprintf(bhist.data$mids, fmt="%.1e"), cex.axis=cexVal)
     plot(thist.data$count, type='h', log='y', main=sprintf('TCF periodogram (detrended) histogram'), cex=cexVal, cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
-    axis(1, at=1:length(thist.data$mids), labels=thist.data$mids, cex.axis=cexVal)
+    axis(1, at=1:length(thist.data$mids), labels=sprintf(thist.data$mids, fmt="%.1e"), cex.axis=cexVal)
     tKurtosisBefore <- kurtosis(tperiodogramTrendRemoved)
 
     # dev.print(png, 'depth_change_gaussian_0.008.png')
@@ -205,13 +208,13 @@ blsAndTCFDepthChange <- function(
 # 0.02336735 for BLS and 0.02612245 for TCF
 
 # Text coordinates used:
-# depth_change_gaussian_0.006.png (BLS, TCF): (175/24, 1.73e-5), (175/24, 46)
-# depth_change_gaussian_0.009.png: (7/24, 2.2e-5), (7/24, 64)
-# depth_change_gaussian_0.02.png: (7/24, 4e-5), (7/24, 157)
+# depth_change_gaussian_0.006.png (BLS, TCF): (22, 1.7155e-5), (22, 45)  # BUT USE adj=1 in text().
+# depth_change_gaussian_0.009.png: (0.08, 2.1e-5), (0.08, 60)
+# depth_change_gaussian_0.02.png: (0.08, 3.8e-5), (0.08, 153)
 
-# depth_change_ar_0.023.png: (BLS, TCF): (6.2/24, 4.7e-5), (6.2/24, 92.5)
+# depth_change_ar_0.023.png: (BLS, TCF): (0.08, 4.85e-5 + 3.5, 1e-5), (0.08, 86)
 # depth_change_ar_0.026.png: (BLS, TCF): (6.2/24, 5.3e-5), (6.2/24, 115)
-# depth_change_ar_0.04.png: (BLS, TCF): (6.2/24, 5.3e-5), (6.2/24, 115)
+# depth_change_ar_0.04.png: (BLS, TCF): (0.08, 7.5e-5), (0.08, 215)
 
 
 # Rough:
@@ -400,12 +403,12 @@ blsAndTCFDepthChangeReal <- function(
     bpergram <- boutput$spec
     tpergram <- toutput$outpow
 
-    plot(t/24, y, type='l', main="DTARPS 103 = TIC 89020549", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='time (days)', ylab='flux')
+    plot(t/24, y, type='l', main="DTARPS 103 = TIC 89020549", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='Time (days)', ylab='Flux')
     # acfEstimate <- acf(y, plot = FALSE)
     # lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
     # n <- length(acfEstimate$acf)
     # plot(
-    #     acfEstimate$acf[2:n], main=sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f", lJStats[3], acfEstimate$acf[[2]]), cex=2, type="h", 
+    #     acfEstimate$acf[2:n], main=sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f", lJStats[3], acfEstimate$acf[[2]]), cex=2, type="h", 
     #     xlab="Lag",     
     #     ylab="ACF", 
     #     ylim=c(-0.2,0.2), # this sets the y scale to -0.2 to 0.2
@@ -421,9 +424,9 @@ blsAndTCFDepthChangeReal <- function(
     # Note: We show the ACF of the time series as it is. In reality, we slightly modify the time series for BLS (see above).
     acfEstimate <- acf(y, plot = FALSE, na.action = na.pass)
     lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
-    plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-    mtext(sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.1)
-    # plot(acfEstimate, main=sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f", lJStats[3], acfEstimate$acf[[2]]), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, cex=cexVal)
+    plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlim=c(1, 20), ylim=c(-0.2, +0.5))
+    text(10, 0.36, sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.9)
+    # plot(acfEstimate, main=sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f", lJStats[3], acfEstimate$acf[[2]]), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, cex=cexVal, ylim=(-0.2, +0.5))
 
     plot(bcobsxy50$x/24, bpergram, type = 'l', main="BLS periodogram", log='x', xlab='Period (days) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
     lines(bcobsxy50$x/24, bcobsxy50$fitted, type = 'l', col='red', lwd=3.0)
@@ -434,7 +437,7 @@ blsAndTCFDepthChangeReal <- function(
     #     col= c("red"), text.col = "black", 
     #     legend=c("trend fit"), bty="n", cex=1.5, pt.cex = 1
     # )
-    text(2/24, 1.62e-4, paste0(sprintf("SNR = %.1f, FAP = %.1e\nPeriod = %.5f days, Depth = %.4f", calculateSNR(boutput$periodsTested, bpergram), fapBLS, perResultsBLS[1]/24, perResultsBLS[2]), "%"), cex=1.8, adj=0)
+    text(2/24, 1.62e-4, paste0(sprintf("SNR = %.1f, FAP = %.1e\nPeriod = %.5f days, Depth = %.3f", calculateSNR(boutput$periodsTested, bpergram), fapBLS, perResultsBLS[1]/24, perResultsBLS[2]), "%"), cex=1.8, adj=0)
     plot(tcobsxy50$x/24, tpergram, type = 'l', main="TCF periodogram", log='x', xlab='Period (days) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
     lines(tcobsxy50$x/24, tcobsxy50$fitted, type = 'l', col='red', lwd=3.0)
     # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
@@ -444,7 +447,7 @@ blsAndTCFDepthChangeReal <- function(
     #     col= c("red"), text.col = "black", 
     #     legend=c("trend fit"), bty="n", cex=1.5, pt.cex = 1
     # )
-    text(2/24, 107, paste0(sprintf("SNR = %.1f, FAP = %.1e\nPeriod = %.5f days, Depth = %.4f", calculateSNR(tperiodsToTry * res, tpergram), fapTCF, perResultsTCF[1]/24, perResultsTCF[2]), "%"), cex=1.8, adj=0)
+    text(2/24, 107, paste0(sprintf("SNR = %.1f, FAP = %.1e\nPeriod = %.5f days, Depth = %.3f", calculateSNR(tperiodsToTry * res, tpergram), fapTCF, perResultsTCF[1]/24, perResultsTCF[2]), "%"), cex=1.8, adj=0)
 
     print(calculateSNR(tperiodsToTry * res, tpergram))
     print(calculateSNR(boutput$periodsTested, bpergram))
@@ -474,9 +477,9 @@ blsAndTCFDepthChangeReal <- function(
     tSkewnessBefore <- skewness(tperiodogramTrendRemoved)
 
     plot(bhist.data$count, type='h', log='y', main=sprintf('BLS periodogram (detrended) histogram'), cex=cexVal, cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
-    axis(1, at=1:length(bhist.data$mids), labels=bhist.data$mids, cex.axis=cexVal)
+    axis(1, at=1:length(bhist.data$mids), labels=sprintf(bhist.data$mids, fmt="%.1e"), cex.axis=cexVal)
     plot(thist.data$count, type='h', log='y', main=sprintf('TCF periodogram (detrended) histogram'), cex=cexVal, cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
-    axis(1, at=1:length(thist.data$mids), labels=thist.data$mids, cex.axis=cexVal)
+    axis(1, at=1:length(thist.data$mids), labels=sprintf(thist.data$mids, fmt="%.1e"), cex.axis=cexVal)
     tKurtosisBefore <- kurtosis(tperiodogramTrendRemoved)
 
     # dev.print(png, 'depth_change_gaussian_0.008.png')
@@ -490,90 +493,90 @@ blsAndTCFDepthChangeReal <- function(
 # real_4.png: 2/24, 1.62e-4; 2/24, 107
 
 
-showFitOverlayed <- function(
-    table
-) {
-    # TODO: For BLS, I think we first remove rows with Na flux values and only then run GPR, so try doing that here.
-    gp <- gausspr(table$times, table$Flux)
-    predicted_y <- predict(gp, table$times)
+# showFitOverlayed <- function(
+#     table
+# ) {
+#     # TODO: For BLS, I think we first remove rows with Na flux values and only then run GPR, so try doing that here.
+#     gp <- gausspr(table$times, table$Flux)
+#     predicted_y <- predict(gp, table$times)
 
-    max.p = 5
-    max.q = 5
-    max.d = 0
-    ARIMA.fit = auto.arima(diff(table$Flux), stepwise=FALSE, approximation=FALSE, seasonal=FALSE, max.p=max.p, max.q=max.q, max.d=max.d, d=0)
-    # print(ARIMA.fit)
+#     max.p = 5
+#     max.q = 5
+#     max.d = 0
+#     ARIMA.fit = auto.arima(diff(table$Flux), stepwise=FALSE, approximation=FALSE, seasonal=FALSE, max.p=max.p, max.q=max.q, max.d=max.d, d=0)
+#     # print(ARIMA.fit)
 
-    png(filename="gpr_fit.png", width = 420, height = 150, units='mm', res = 300)
-    par(mar=c(5,6,4,2), cex=15)
+#     png(filename="gpr_fit.png", width = 420, height = 150, units='mm', res = 300)
+#     par(mar=c(5,6,4,2), cex=15)
 
-    cexVal <- 1.7
-    # mat1 <- matrix(c(
-    #     1, 1, 1, 1, 2, 2,
-    #     3, 3, 3, 3, 4, 4
-    #     ), nrow = 2, ncol = 6, byrow = TRUE
-    # )
-    # layout(mat1)
-    layout(matrix(c(
-        1, 1, 1, 1, 2, 2,
-        3, 3, 3, 3, 4, 4
-    ), ncol = 6, nrow=2, byrow=TRUE))
+#     cexVal <- 1.7
+#     # mat1 <- matrix(c(
+#     #     1, 1, 1, 1, 2, 2,
+#     #     3, 3, 3, 3, 4, 4
+#     #     ), nrow = 2, ncol = 6, byrow = TRUE
+#     # )
+#     # layout(mat1)
+#     layout(matrix(c(
+#         1, 1, 1, 1, 2, 2,
+#         3, 3, 3, 3, 4, 4
+#     ), ncol = 6, nrow=2, byrow=TRUE))
 
-    ################# CODE FOR GPR ################
-    par(mar=c(0,6,4,2))
-    plot(table$times/24, table$Flux, col='black', type='l', main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, ylab="flux", xlab="", xaxt="n")
-    lines(table$times/24, predicted_y, col='red', lwd=1.0)
-    text(24, 1.0012, "Gaussian Processes Regression fit", cex=cexVal, adj=1)
+#     ################# CODE FOR GPR ################
+#     par(mar=c(0,6,4,2))
+#     plot(table$times/24, table$Flux, col='black', type='l', main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, ylab="flux", xlab="", xaxt="n")
+#     lines(table$times/24, predicted_y, col='red', lwd=1.0)
+#     text(24, 1.0012, "Gaussian Processes Regression fit", cex=cexVal, adj=1)
 
-    acfEstimate <- acf(table$Flux, plot = FALSE, na.action = na.pass)
-    lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
-    plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", yaxt="n")
-    text(15, 0.8, sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.5)
+#     acfEstimate <- acf(table$Flux, plot = FALSE, na.action = na.pass)
+#     lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
+#     plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", yaxt="n", xlim=c(1, 20), ylim=c(-0.2, +0.5))
+#     text(15, 0.8, sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.5)
 
-    axis(2, at=c(-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0), cex.axis=cexVal)
+#     axis(2, at=c(-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0), cex.axis=cexVal)
 
-    par(mar=c(5,6,0,2))
-    plot(table$times/24, table$Flux-predicted_y, col='black', type='l', main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, ylab="Residual flux", xlab="time (days)", yaxt="n")
-    text(24, 0.00135, "Gaussian Processes Regression residuals", cex=cexVal, adj=1)
+#     par(mar=c(5,6,0,2))
+#     plot(table$times/24, table$Flux-predicted_y, col='black', type='l', main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, ylab="Residual flux", xlab="Time (days)", yaxt="n")
+#     text(24, 0.00135, "Gaussian Processes Regression residuals", cex=cexVal, adj=1)
 
-    axis(2, at=c(-0.001, 0.000, 0.001), cex.axis=cexVal)
+#     axis(2, at=c(-0.001, 0.000, 0.001), cex.axis=cexVal)
 
-    acfEstimate <- acf(table$Flux - predicted_y, plot = FALSE, na.action = na.pass)
-    lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
-    plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, yaxt="n")
-    text(15, 0.8, sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.5)
-    axis(2, at=c(-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0), cex.axis=cexVal)
+#     acfEstimate <- acf(table$Flux - predicted_y, plot = FALSE, na.action = na.pass)
+#     lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
+#     plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, yaxt="n", xlim=c(1, 20), ylim=c(-0.2, +0.5))
+#     text(15, 0.8, sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.5)
+#     axis(2, at=c(-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0), cex.axis=cexVal)
 
-    ###############################################
+#     ###############################################
 
 
-    ################ CODE FOR ARIMA ###############
-    # par(mar=c(0,6,4,2))
-    # plot(head(table$times/24, -1), diff(table$Flux), col='black', type='l', main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, ylab="Differenced flux", xlab="", xaxt="n")
-    # lines(head(table$times/24, -1), fitted(ARIMA.fit), col='red', lwd=1.0)
-    # text(17, 0.0015, paste0("ARIMA(", ARIMA.fit$arma[[1]], ",1,", ARIMA.fit$arma[[2]], ") fit"), cex=cexVal, adj=1)
+#     ################ CODE FOR ARIMA ###############
+#     # par(mar=c(0,6,4,2))
+#     # plot(head(table$times/24, -1), diff(table$Flux), col='black', type='l', main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, ylab="Differenced flux", xlab="", xaxt="n")
+#     # lines(head(table$times/24, -1), fitted(ARIMA.fit), col='red', lwd=1.0)
+#     # text(17, 0.0015, paste0("ARIMA(", ARIMA.fit$arma[[1]], ",1,", ARIMA.fit$arma[[2]], ") fit"), cex=cexVal, adj=1)
 
-    # acfEstimate <- acf(diff(table$Flux), plot = FALSE, na.action = na.pass)
-    # lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
-    # plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", yaxt="n")
-    # text(15, 0.8, sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.5)
+#     # acfEstimate <- acf(diff(table$Flux), plot = FALSE, na.action = na.pass)
+#     # lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
+#     # plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", yaxt="n", xlim=c(1, 20), ylim=c(-0.2, +0.5))
+#     # text(15, 0.8, sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.5)
 
-    # axis(2, at=c(-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0), cex.axis=cexVal)
+#     # axis(2, at=c(-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0), cex.axis=cexVal)
 
-    # par(mar=c(5,6,0,2))
-    # plot(head(table$times/24, -1), diff(table$Flux)-fitted(ARIMA.fit), col='black', type='l', main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, ylab="Residual flux", xlab="time (days)", yaxt="n")
-    # text(17, 0.00125, "ARIMA residuals", cex=cexVal, adj=1)
+#     # par(mar=c(5,6,0,2))
+#     # plot(head(table$times/24, -1), diff(table$Flux)-fitted(ARIMA.fit), col='black', type='l', main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, ylab="Residual flux", xlab="Time (days)", yaxt="n")
+#     # text(17, 0.00125, "ARIMA residuals", cex=cexVal, adj=1)
 
-    # axis(2, at=c(-0.001, 0.000, 0.001), cex.axis=cexVal)
+#     # axis(2, at=c(-0.001, 0.000, 0.001), cex.axis=cexVal)
 
-    # acfEstimate <- acf(residuals(ARIMA.fit), plot = FALSE, na.action = na.pass)
-    # lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
-    # plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, yaxt="n")
-    # text(15, 0.8, sprintf("P(Ljung-Box) = %.3f, lag-1 acf = %.3f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.5)
-    # axis(2, at=c(-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0), cex.axis=cexVal)
-    ###############################################
+#     # acfEstimate <- acf(residuals(ARIMA.fit), plot = FALSE, na.action = na.pass)
+#     # lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
+#     # plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, yaxt="n", xlim=c(1, 20), ylim=c(-0.2, +0.5))
+#     # text(15, 0.8, sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.5)
+#     # axis(2, at=c(-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0), cex.axis=cexVal)
+#     ###############################################
 
-    dev.off()
-}
+#     dev.off()
+# }
 
 centerPieceFigure <- function(
     period=2, depth=0.0265, noiseType=2, duration=2, ntransits=10, res=2, ofac=2, useOptimalFreqSampling=FALSE, lctype="sim",
