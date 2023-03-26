@@ -9,37 +9,38 @@ This repository contains R code for comparing the [BLS](https://www.aanda.org/ar
 
 ## Usage
 
-The function `evd` inside `eva_periodogram.R` contains the main functionality for calculating the False Alarm Probability and/or the SNR of periodogram peaks. It can handle both simulated and real observational data. No constraints on the observations, such as evenly spaced, no gaps, etc. are imposed.
+The function `evd` inside `eva_periodogram.R` contains the main functionality for calculating the False Alarm Probability and/or the SNR of periodogram peaks. It can handle both simulated and real observational data. No constraints on the observations, such as evenly spaced, no gaps, etc., are imposed.
 
-Here is a basic example to use this function:
+Here is a basic example of using this function:
 
 ```R
 source("eva_periodogram.R")  # To source the R script that contains the evd function.
-evd(
+result <- evd(
     2, 0.01, 2, algo="BLS", noiseType=1, ntransits=10,
     ofac=2, L=300, R=300, FAPSNR_mode=0, lctype="sim"
 )
+score <- result[1]  # score is the FAP if FAPSNR_mode == 0, SNR if FAPSNR_mode == 1, and a weighted sum of FAP and SNR if FAPSNR_mode == 2.
 ```
 
-- This simulates a planet with period = 2 days (first argument), a depth of 0.01% (second argument), and transit duration = 2 hours (third argument).
+- This simulates a planet with a period = 2 days (first argument), a depth of 0.01% (second argument), and transit duration = 2 hours (third argument).
 - `algo` can be either `BLS` or `TCF`.
-- `noiseType=1` simulates Gaussian noise with a fixed mean and standard deviation
-    - Currently, the user cannot tune it via this function interface, but can be done by editing the source code inside `utils.R` - we recommend the user instead manipulate the `depth` argument since for simulations, only the relative difference between the noise standard deviation and depth matters, and not the actual values.
-- `ntransits` controls how many transits must be contained inside the ligt curve.
-- `ofac` is the oversampling factor for computing the periodogram. A value around 2-5 generally suffices.
+- `noiseType=1` simulates Gaussian noise with a fixed mean and standard deviation.
+    - Currently, the user cannot tune the Gaussian noise parameters via this function interface, but can be done by editing the source code inside `utils.R` - we recommend the user instead manipulate the `depth` argument since only the relative difference between the noise standard deviation and depth matters, and not the actual values.
+- `ntransits` controls how many transits must be contained inside the light curve.
+- `ofac` is the oversampling factor for computing the periodogram. A value of around 2-5 generally suffices.
 - `L` and `R` are parameters used for the extreme value calculation.
-- `FAPSNR_mode` controls what metric must be used to get the periodogram score. 0 means only FAP of the peak is computed. 1 means only the SNR of the peak is computed. 2 means both are computed, in which both FAP and SNR are weighted by fixed factors.
-- `lctype` can take values "sim" and "real". The former is to be used for simulations (in which case the period, depth, and duration are needed as input). The latter is to be used for calculations on real ligt curves (in which case, the observations (i.e. fluxes) and time epochs need to be passed. See below).
+- `FAPSNR_mode` controls what metric must be used to get the periodogram score. 0 means only the FAP of the peak is computed. 1 means only the SNR of the peak is computed. 2 means both are computed, in which both FAP and SNR are weighted by fixed factors.
+- `lctype` can take values "sim" and "real". The former is to be used for simulations (in which case the period, depth, and duration are needed as input). The latter is to be used for calculations on real light curves (in which case, the observations (i.e., fluxes) and time epochs need to be passed. See below).
 
-For passing custom flux values and time epochs (for eg: in the case of real observational data), this can be done by:
+For passing custom flux values and time epochs (e.g., in the case of real observational data), this can be done by:
 
 ```R
-evd(y=y, t=t, ...)
+result <- evd(y=y, t=t, ...)
 ```
 where `y` and `t` denote the fluxes and time epochs, respectively. Observational fluxes are generally associated with errors, but this cannot be used in the code as of now.
 
 ## Example application
-The `evd` function can be run on a set of transit depths for different periodogram algorithms independently, to yield plots like the below:
+The `evd` function can be run on a set of transit depths for different periodogram algorithms independently to yield plots like the below:
 
 ![ntransits_comparison_BLS_and_TCF](images/ntransits_BLS_TCF.png)
 
