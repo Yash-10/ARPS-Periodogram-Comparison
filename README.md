@@ -65,7 +65,7 @@ For passing custom flux values and time epochs (e.g., in the case of real observ
 ```R
 result <- evd(y=y, t=t, ...)
 ```
-where `y` and `t` denote the fluxes and time epochs, respectively. Observational fluxes are generally associated with errors, but this cannot be used in the code as of now.
+where `y` and `t` denote the fluxes and time epochs, respectively. `...` denote any other arguments to `evd` as stated above. Observational fluxes are generally associated with errors, but this cannot be used in the code as of now.
 
 **Important notes**:
 
