@@ -1,1 +1,2 @@
-The `tcf.f95` code here is the cleaned version after consulting with Gabriel. It is not the one from the google drive nor from the ASCL.
+- The `tcf.f95` code here is the cleaned version after consulting with the original code author, Gabriel Caceres. It is not the one from the [ASCL record](https://ascl.net/2206.002).
+- It is recommended to use this version of TCF for better compatibility with the rest of the code in this repository.
