@@ -9,10 +9,31 @@ Small transiting exoplanets are hard to detect via the transit method. The BLS p
 
 ## Installation
 
-1. Clone the repository
-2. Edit the shared library paths inside `BLS/bls.R` and `TCF3.0/intf_libtcf.R` (locate the line `dyn.load(...)` at the top of these files) to match the path to the `.so` files.
+1. Clone the repository.
+2. Create shared object (`.so`) files by compiling the fortran source code:
+
+```bash
+# For BLS
+cd BLS
+gfortran -c eebls.f  # will create eebls.o
+gfortran -shared eebls.o
+
+# For TCF
+cd ../TCF3.0
+gfortran -c median.f90
+gfortran -c rand_tools.f95
+gfortran -c tcf.f95
+gfortran -c main_tcf.f95
+
+# Combine all object files into a single shared object file
+gfortran -shared median.o rand_tools.o tcf.o main_tcf.o  # will create a.out
+```
+
+3. Edit the shared library paths inside `BLS/bls.R` and `TCF3.0/intf_libtcf.R` (locate the line `dyn.load(...)` at the top of these files) to match the path to the `eebls.so` (for BLS) and `a.out` (for TCF) files.
 
 ## Usage
+
+### Simulations
 
 The function `evd` inside `eva_periodogram.R` contains the main functionality for calculating the False Alarm Probability and/or the SNR of periodogram peaks. It can handle both simulated and real observational data. No constraints on the observations, such as evenly spaced, no gaps, etc., are imposed.
 
@@ -36,6 +57,8 @@ score <- result[1]  # score is the FAP if FAPSNR_mode == 0, SNR if FAPSNR_mode =
 - `L` and `R` are parameters used for the extreme value calculation.
 - `FAPSNR_mode` controls what metric must be used to get the periodogram score. 0 means only the FAP of the peak is computed. 1 means only the SNR of the peak is computed. 2 means both are computed, in which both FAP and SNR are weighted by fixed factors.
 - `lctype` can take values "sim" and "real". The former is to be used for simulations (in which case the period, depth, and duration are needed as input). The latter is to be used for calculations on real light curves (in which case, the observations (i.e., fluxes) and time epochs need to be passed. See below).
+
+### Custom datasets
 
 For passing custom flux values and time epochs (e.g., in the case of real observational data), this can be done by:
 
