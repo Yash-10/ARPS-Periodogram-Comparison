@@ -67,8 +67,13 @@ result <- evd(y=y, t=t, ...)
 ```
 where `y` and `t` denote the fluxes and time epochs, respectively. Observational fluxes are generally associated with errors, but this cannot be used in the code as of now.
 
+**Important notes**:
+
+1. The BLS code present in this repository (which is extracted directly from the [original source code](https://ui.adsabs.harvard.edu/abs/2016ascl.soft07008K/abstract)), fails when non-finite (e.g., NaN/Inf) values are present in the input. Hence, one needs to manually remove the flux values and the corresponding observation epoch that are non-finite before running the extreme value code above. If you think the extreme value code should handle non-finite value check internally so that one need not do it beforehand, please open an issue, and we can can discuss it further.
+2. Noting the above point, [`real_light_curve_application.R`](https://github.com/Yash-10/arps/blob/main/real_light_curve_application.R) contains a code example of how to use the extreme value code for BLS without any errors. See [line 41 in `real_light_curve_application.R`](https://github.com/Yash-10/arps/blob/main/real_light_curve_application.R#L41).
+
 ## Example application
-The `evd` function can be run on a set of transit depths for different periodogram algorithms independently to yield plots like the below:
+The `evd` function can be run on a set of transit depths for different periodogram algorithms independently to yield the minimum detectable depth. These can be used to make plots like the below:
 
 ![ntransits_comparison_BLS_and_TCF](images/ntransits_BLS_TCF.png)
 
