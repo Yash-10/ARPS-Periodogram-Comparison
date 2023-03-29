@@ -10,13 +10,13 @@ Small transiting exoplanets are hard to detect via the transit method. The BLS p
 ## Installation
 
 1. Clone the repository.
-2. Create shared object (`.so`) files by compiling the fortran source code:
+2. Create shared object files by compiling the fortran source code:
 
 ```bash
 # For BLS
 cd BLS
 gfortran -c eebls.f  # will create eebls.o
-gfortran -shared eebls.o
+gfortran -shared eebls.o  # will create a.out
 
 # For TCF
 cd ../TCF3.0
@@ -29,7 +29,7 @@ gfortran -c main_tcf.f95
 gfortran -shared median.o rand_tools.o tcf.o main_tcf.o  # will create a.out
 ```
 
-3. Edit the shared library paths inside `BLS/bls.R` and `TCF3.0/intf_libtcf.R` (locate the line `dyn.load(...)` at the top of these files) to match the path to the `eebls.so` (for BLS) and `a.out` (for TCF) files.
+3. Edit the shared library paths inside `BLS/bls.R` and `TCF3.0/intf_libtcf.R` (locate the line `dyn.load(...)` at the top of these files) to match the path to the BLS's `a.out` and TCF's `a.out` files.
 
 ## Usage
 
