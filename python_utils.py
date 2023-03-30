@@ -1,4 +1,9 @@
-# Python utility function used in R scripts.
+# ***************************************************************************
+# Author: Yash Gondhalekar  Last updated: March, 2023
+
+# Description: A utility function written in Python used in R scripts.
+
+# ***************************************************************************
 
 import random
 
@@ -11,7 +16,7 @@ def rand_parts(seq, n, l):
         l (int): No. of elements in each subsequence.
 
     Returns:
-        list: The desired result.
+        list: The desired result, of length n*l.
 
     """
     random.seed(1)

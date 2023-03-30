@@ -1,15 +1,21 @@
-#################################################################################################
-# Aim: Contains utility functions used in other R scripts.
+# ***************************************************************************
+# Author: Yash Gondhalekar  Last updated: March, 2023
 
-# Notes:
-# 1. Limitation of the function getLightCurve:
-    #  - Both the duration (in hours) and the period (in days) must be either integer or
-    # half-integer because the code requires two times the duration and period to be an integer.
-# 2. **Important**
-#    - The arguments ar, ma, and order are obsolete. The getLightCurve function, to which these
-#      were intended to passed have these values harcoded inside that function. So passing
-#      different values will not have any difference.
-#################################################################################################
+# Description: Contains utility functions used in other R scripts.
+
+#              Notes:
+#              Limitation of the function getLightCurve:
+#              Both the duration (in hours) and the period (in days) must be
+#              either an integer or a half-integer because the code requires
+#              two times the duration and period to be an integer.
+#              IMPORTANT: The arguments ar, ma, and order are obsolete. The
+#              getLightCurve function, to which these were intended to passed
+#              have these values harcoded inside that function. So passing
+#              different values will not have any difference. Future versions
+#              would try solving for this caveat.
+
+# ***************************************************************************
+
 
 library(forecast)
 library(reticulate)
@@ -19,6 +25,7 @@ library(moments)
 
 source_python("python_utils.py")
 
+# This function simulates a light curve given some parameters of the light curve.
 getLightCurve <- function(
     period,  # What period (in days) do you want to have in your light curve, will be a single value. eg: 1/3/5/7/9.
     depth,  # What depth (in % of the star's presumed constant level which is 1) do you want to have in your light curve, will be a single value. eg: 0.01/0.05/0.1/0.15/0.2.
@@ -36,6 +43,7 @@ getLightCurve <- function(
     checkConditions=TRUE,  # Whether to perform small unit tests within the code to ensure the output is as expected. Recommended: Set to TRUE for almost all cases, but added this option so that `uniroot` does not throw error when finding the limiting depth - see below functions.
     seedValue=1
 ) {
+    # Ensure the user specifices legitimate values.
     if (checkConditions) {
         stopifnot(exprs = {
             period > 0
@@ -163,6 +171,8 @@ getGPRResid <- function(
     return (y)
 }
 
+# THIS IS A TRAIL FUNCTION, NOT USED ANYWHERE : It can be used to undifference a light curve.
+# It is not guaranteed to work as expected.
 undifferenceATimeSeries <- function(
     differenced,  # The differenced time series.
     orig_first_observation  # The first observation value in the original time series.
@@ -192,26 +202,6 @@ plot_folded_lc <- function(lc, bestper)  # bestper is the period at which you wa
     axis(1,at=seq(from=0, to=1, by=.1), labels = F, tcl=0.25)
     axis(1,at=seq(from=0, to=1, by=.2), labels = F, tcl=0.5)
     text(0.5, Text0.pos, "Phase-folded light curve", pos=1, cex=1.2)
-}
-
-createLCforBLSFitShow <- function(period=2, duration=2, res=2, ofac=2) {
-    yt <- getLightCurve(period, 0.0265, duration, noiseType=2, seedValue=42)
-    df <- data.frame(y=yt[[1]], t=yt[[2]]/24, err=rep(0, length(yt[[1]])))
-    df <- df[, c(2, 1, 3)]
-    # df[,1] <- 1518.411165649 + df[,1]/24
-    dff <- read.table('DTARPS176685457_lc.txt')
-    df[,1] <- dff[,1][1:1071]
-    df[,3] <- df[,3] + 0.004216937
-    write.table(df, "cc.transit", col.names=FALSE, row.names=FALSE, quote=FALSE)
-
-    t <- unlist(yt[2])
-    y <- unlist(yt[[1]])
-    freqs <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=FALSE, algo="BLS", lctype="sim")
-    print(min(freqs))
-    print(max(freqs))
-    print(length(freqs))
-    print(round(length(y)*0.1))
-    return (freqs)
 }
 
 # Function to create the frequency grid used for computing the BLS and TCF periodograms.

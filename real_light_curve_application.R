@@ -1,10 +1,12 @@
-#################################################################################################
-# Aim: This script reads all the four DTARPS TESS light curves showed in our paper, runs the
-# extreme value code on each, and then plots the results.
+# ***************************************************************************
+# Author: Yash Gondhalekar  Last updated: March, 2023
 
-# This code also provides an example of how to use our code on real light curves.
+# Description: This script reads all the four DTARPS TESS light curves showed
+#              in our paper, runs the extreme value code on each, and then
+#              plots the results. This code also provides an example of how
+#              to use our code on real light curves.
 
-#################################################################################################
+# ***************************************************************************
 
 source('eva_periodogram.R')
 source('bls_and_tcf_periodogram_show.R')
@@ -17,6 +19,7 @@ filenames <- c()
 list_of_files <- list.files("./", pattern=glob2rx("DTARPS*_lc.txt"))
 for (file in list_of_files) {
     table <- read.table(file, header=TRUE)
+    # NOTE: Our extreme value function `evd` expects time to be in hours. Hence, we modify from JD values to hours.
     table$times = (table$Time - table$Time[1]) * 24
     tables[[file]] <- table
     filenames <- c(filenames, file)
@@ -42,6 +45,7 @@ for (i in 1:length(tables)) {
         }
 
         if (algo == "BLS") {
+            # Run EVD on the light curve,
             result <- evd(y=table_BLS$Flux, t=table_BLS$times, algo=algo, FAPSNR_mode=0, lctype="real", applyGPRforBLS=TRUE, seedValue=seedValue)
             fap <- result[1]
             perResults <- result[3:5]
@@ -69,6 +73,3 @@ print(results)
 print("==================================")
 
 write.csv(x=results, file="real_lc_bls_and_tcf_compare_gpr.csv")
-
-# Show periodograms
-# blsAndTCF(y=table_1$flux, t=table_1$times, lctype="real", useOptimalFreqSampling=TRUE)

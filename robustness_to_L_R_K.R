@@ -1,3 +1,11 @@
+# ***************************************************************************
+# Author: Yash Gondhalekar  Last updated: March, 2023
+
+# Description: This script was used for making figures in Appendix B in our
+#			   paper, which is about the robustness tests.
+
+# ***************************************************************************
+
 # L
 glimitingDepthBLSArr_FAPSNR_mode_0 <- c(0.005918367, 0.005000000, 0.006836735, 0.005918367, 0.005918367)
 glimitingDepthTCFArr_FAPSNR_mode_0 <- c(0.01142857, 0.01142857, 0.01234694, 0.01234694, 0.01142857)

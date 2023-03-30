@@ -1,12 +1,13 @@
-#################################################################################
-# Aim: Given a transit depth, run the extreme value code and related procedures
-# and then plot the results.
+# ***************************************************************************
+# Author: Yash Gondhalekar  Last updated: March, 2023
 
-# Notes:
-# 1. This script can only be used if simulation is the intention.
-# 2. This script was used for making some of the plots in the paper.
+# Description: Given a transit depth, run the extreme value code and related
+#              procedures and then plots the results.
 
-#################################################################################
+#       Notes:
+#          1. This script can only be used if simulation is the intention.
+#          2. This script was used for making Fig. 1 and 2 in our paper.
+# ***************************************************************************
 
 library(forecast)
 library('cobs')
@@ -19,6 +20,13 @@ source('BLS/bls.R')
 source('TCF3.0/intf_libtcf.R')
 source('utils.R')
 
+
+# Use this function for simulated data.
+# It requires only the depth. Period and transit duration are currently hardcoded inside the function.
+# This can be helpful if one wants to look at the periodograms by only varying the depth, keeping everything else the same.
+# In such a case, this sunction can be run multiple times with different depths.
+# Much of the code inside this and the blsAndTCFDepthChangeReal functions use from the code inside `evd` from `eva_periodogram.R` script.
+# A future TODO is to factor out the common code into a separate function to prevent duplicacy.
 blsAndTCFDepthChange <- function(
     depth, noiseType=1, ntransits=10, res=2, ofac=2,
     gaussStd=1e-4, ar=0.2, ma=0.2, order=c(1, 0, 1), useOptimalFreqSampling=TRUE,
@@ -273,7 +281,9 @@ blsAndTCFDepthChange <- function(
 # Average: 0.00729591836734694, 0.0110612244897959
 
 
-########### Showing results on real light curves.
+# Use this function on real light curves.
+# It requires the argument `table`, that contains fluxes and times as columns.
+# See real_light_curve_application.R for an example to setup the table.
 blsAndTCFDepthChangeReal <- function(
     table, noiseType=1, ntransits=10, res=2, ofac=2,
     gaussStd=1e-4, ar=0.2, ma=0.2, order=c(1, 0, 1), useOptimalFreqSampling=TRUE,
@@ -352,7 +362,7 @@ blsAndTCFDepthChangeReal <- function(
 
     # Normalize, detrend, etc...
     # (1) Remove trend in periodogram
-    # TODO: Is constraint='increase' really needed??
+    # constraint='increase' is used, but may not be needed.
     blambdaTrend <- 1
     bcobsxy50 <- cobs(boutput$periodsTested, boutput$spec, ic='BIC', tau=0.5, lambda=blambdaTrend, constraint="increase")  # If tau = 0.5 and lambda = 0 => Median regression fit.
     bcobsxy501 <- cobs(boutput$periodsTested, boutput$spec, ic='BIC', tau=0.9, lambda=blambdaTrend)
@@ -370,7 +380,6 @@ blsAndTCFDepthChangeReal <- function(
     bScatter <- computeScatter(bperiodogramTrendRemoved, windowLength=scatterWindowLength)
     tScatter <- computeScatter(tperiodogramTrendRemoved, windowLength=scatterWindowLength)
 
-    # print("Scatter")
     blambdaScatter <- 1
     bcobsScatter <- cobs(boutput$periodsTested, bScatter, ic='BIC', tau=0.5, lambda=blambdaScatter)
     # cobss50 <- cobs(output$periodsTested, periodogramTrendRemoved, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")  # If tau = 0.5 and lambda = 0 => Median regression fit.
@@ -482,7 +491,6 @@ blsAndTCFDepthChangeReal <- function(
     axis(1, at=1:length(thist.data$mids), labels=sprintf(thist.data$mids, fmt="%.1e"), cex.axis=cexVal)
     tKurtosisBefore <- kurtosis(tperiodogramTrendRemoved)
 
-    # dev.print(png, 'depth_change_gaussian_0.008.png')
     dev.off()
 }
 
@@ -491,209 +499,3 @@ blsAndTCFDepthChangeReal <- function(
 # real_2.png: 4/24, 4.15e-5; 2/24, 123
 # real_3.png: 35/24, 1.4e-4; 35/24, 240
 # real_4.png: 2/24, 1.62e-4; 2/24, 107
-
-
-# showFitOverlayed <- function(
-#     table
-# ) {
-#     # TODO: For BLS, I think we first remove rows with Na flux values and only then run GPR, so try doing that here.
-#     gp <- gausspr(table$times, table$Flux)
-#     predicted_y <- predict(gp, table$times)
-
-#     max.p = 5
-#     max.q = 5
-#     max.d = 0
-#     ARIMA.fit = auto.arima(diff(table$Flux), stepwise=FALSE, approximation=FALSE, seasonal=FALSE, max.p=max.p, max.q=max.q, max.d=max.d, d=0)
-#     # print(ARIMA.fit)
-
-#     png(filename="gpr_fit.png", width = 420, height = 150, units='mm', res = 300)
-#     par(mar=c(5,6,4,2), cex=15)
-
-#     cexVal <- 1.7
-#     # mat1 <- matrix(c(
-#     #     1, 1, 1, 1, 2, 2,
-#     #     3, 3, 3, 3, 4, 4
-#     #     ), nrow = 2, ncol = 6, byrow = TRUE
-#     # )
-#     # layout(mat1)
-#     layout(matrix(c(
-#         1, 1, 1, 1, 2, 2,
-#         3, 3, 3, 3, 4, 4
-#     ), ncol = 6, nrow=2, byrow=TRUE))
-
-#     ################# CODE FOR GPR ################
-#     par(mar=c(0,6,4,2))
-#     plot(table$times/24, table$Flux, col='black', type='l', main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, ylab="flux", xlab="", xaxt="n")
-#     lines(table$times/24, predicted_y, col='red', lwd=1.0)
-#     text(24, 1.0012, "Gaussian Processes Regression fit", cex=cexVal, adj=1)
-
-#     acfEstimate <- acf(table$Flux, plot = FALSE, na.action = na.pass)
-#     lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
-#     plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", yaxt="n", xlim=c(1, 20), ylim=c(-0.2, +0.5))
-#     text(15, 0.8, sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.5)
-
-#     axis(2, at=c(-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0), cex.axis=cexVal)
-
-#     par(mar=c(5,6,0,2))
-#     plot(table$times/24, table$Flux-predicted_y, col='black', type='l', main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, ylab="Residual flux", xlab="Time (days)", yaxt="n")
-#     text(24, 0.00135, "Gaussian Processes Regression residuals", cex=cexVal, adj=1)
-
-#     axis(2, at=c(-0.001, 0.000, 0.001), cex.axis=cexVal)
-
-#     acfEstimate <- acf(table$Flux - predicted_y, plot = FALSE, na.action = na.pass)
-#     lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
-#     plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, yaxt="n", xlim=c(1, 20), ylim=c(-0.2, +0.5))
-#     text(15, 0.8, sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.5)
-#     axis(2, at=c(-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0), cex.axis=cexVal)
-
-#     ###############################################
-
-
-#     ################ CODE FOR ARIMA ###############
-#     # par(mar=c(0,6,4,2))
-#     # plot(head(table$times/24, -1), diff(table$Flux), col='black', type='l', main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, ylab="Differenced flux", xlab="", xaxt="n")
-#     # lines(head(table$times/24, -1), fitted(ARIMA.fit), col='red', lwd=1.0)
-#     # text(17, 0.0015, paste0("ARIMA(", ARIMA.fit$arma[[1]], ",1,", ARIMA.fit$arma[[2]], ") fit"), cex=cexVal, adj=1)
-
-#     # acfEstimate <- acf(diff(table$Flux), plot = FALSE, na.action = na.pass)
-#     # lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
-#     # plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", yaxt="n", xlim=c(1, 20), ylim=c(-0.2, +0.5))
-#     # text(15, 0.8, sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.5)
-
-#     # axis(2, at=c(-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0), cex.axis=cexVal)
-
-#     # par(mar=c(5,6,0,2))
-#     # plot(head(table$times/24, -1), diff(table$Flux)-fitted(ARIMA.fit), col='black', type='l', main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, ylab="Residual flux", xlab="Time (days)", yaxt="n")
-#     # text(17, 0.00125, "ARIMA residuals", cex=cexVal, adj=1)
-
-#     # axis(2, at=c(-0.001, 0.000, 0.001), cex.axis=cexVal)
-
-#     # acfEstimate <- acf(residuals(ARIMA.fit), plot = FALSE, na.action = na.pass)
-#     # lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
-#     # plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, yaxt="n", xlim=c(1, 20), ylim=c(-0.2, +0.5))
-#     # text(15, 0.8, sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.5)
-#     # axis(2, at=c(-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1.0), cex.axis=cexVal)
-#     ###############################################
-
-#     dev.off()
-# }
-
-centerPieceFigure <- function(
-    period=2, depth=0.0265, noiseType=2, duration=2, ntransits=10, res=2, ofac=2, useOptimalFreqSampling=FALSE, lctype="sim",
-    applyGPRforBLS=TRUE, gaussStd=1e-4, ar=0.2, ma=0.2, order=c(1, 0, 1), seedValue=465, L=300, R=300
-) {
-    # Generate light curve using the parameters.
-    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res, gaussStd=gaussStd, ar=ar, ma=ma, order=order, seedValue=seedValue)
-    y <- unlist(yt[1])
-    t <- unlist(yt[2])
-    noiseStd <- unlist(yt[3])
-    noiseIQR <- unlist(yt[4])
-
-    # Special case (TCF fails if absolutely no noise -- so add a very small amount of noise just to prevent any errors).
-    if (noiseType == 0) {
-        y <- y + 10^-10 * rnorm(length(y))
-    }
-
-    # Create frequency grid.
-    bfreqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo="BLS")
-    tfreqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo="TCF")
-
-    boutput <- bls(if (noiseType == 2 | applyGPRforBLS) getGPRResid(t, y) else y, t, bls.plot = FALSE, per.min=min(1/bfreqGrid), per.max=max(1/bfreqGrid), nper=length(bfreqGrid))
-    bperResults <- c(boutput$per, boutput$depth, boutput$dur)
-    tfstep <- (max(tfreqGrid) - min(tfreqGrid)) / length(tfreqGrid)
-    tfreqs <- seq(from = min(tfreqGrid), by = tfstep, length.out = length(tfreqGrid))
-    tperiodsToTry <- 1 / tfreqs
-    tresidTCF <- getResidForTCF(y)
-    toutput <- tcf(tresidTCF, p.try = tperiodsToTry * res, print.output = TRUE)
-    tpowmax.loc = which.max(toutput$outpow)
-    tperResults <- c(toutput$inper[tpowmax.loc]/res, toutput$outdepth[tpowmax.loc], toutput$outdur[tpowmax.loc]/res)
-    # output$inper = output$inper / 2
-
-    # (1) Remove trend in periodogram
-    # TODO: Is constraint='increase' really needed??
-    blambdaTrend <- 1
-    bcobsxy50 <- cobs(boutput$periodsTested, boutput$spec, ic='BIC', tau=0.5, lambda=blambdaTrend, constraint="increase")  # If tau = 0.5 and lambda = 0 => Median regression fit.
-    bcobsxy501 <- cobs(boutput$periodsTested, boutput$spec, ic='BIC', tau=0.9, lambda=blambdaTrend)
-    bcobsxy502 <- cobs(boutput$periodsTested, boutput$spec, ic='BIC', tau=0.99, lambda=blambdaTrend)
-    tlambdaTrend <- 1
-    tcobsxy50 <- cobs(tperiodsToTry, toutput$outpow, ic='BIC', tau=0.5, lambda=tlambdaTrend, constraint="increase")
-    tcobsxy501 <- cobs(tperiodsToTry, toutput$outpow, ic='BIC', tau=0.9, lambda=tlambdaTrend)
-    tcobsxy502 <- cobs(tperiodsToTry, toutput$outpow, ic='BIC', tau=0.99, lambda=tlambdaTrend)
-
-    bperiodogramTrendRemoved <- bcobsxy50$resid
-    tperiodogramTrendRemoved <- tcobsxy50$resid
-
-    # (2) Remove local scatter in periodogram
-    scatterWindowLength <- 100
-    bScatter <- computeScatter(bperiodogramTrendRemoved, windowLength=scatterWindowLength)
-    tScatter <- computeScatter(tperiodogramTrendRemoved, windowLength=scatterWindowLength)
-
-    # print("Scatter")
-    blambdaScatter <- 1
-    bcobsScatter <- cobs(boutput$periodsTested, bScatter, ic='BIC', tau=0.5, lambda=blambdaScatter)
-    # cobss50 <- cobs(output$periodsTested, periodogramTrendRemoved, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")  # If tau = 0.5 and lambda = 0 => Median regression fit.
-    # cobss501 <- cobs(output$periodsTested, periodogramTrendRemoved, ic='BIC', tau=0.9, lambda=lambdaTrend, constraint="increase")
-    # cobss502 <- cobs(output$periodsTested, periodogramTrendRemoved, ic='BIC', tau=0.99, lambda=lambdaTrend)
-    tlambdaScatter <- 1
-    tcobsScatter <- cobs(tperiodsToTry, tScatter, ic='BIC', tau=0.5, lambda=tlambdaScatter)
-
-    bnormalizedPeriodogram <- bperiodogramTrendRemoved / bcobsScatter$fitted
-    tnormalizedPeriodogram <- tperiodogramTrendRemoved / tcobsScatter$fitted
-
-    # Call extreme value analysis code.
-    resultBLS <- evd(period, depth, duration, noiseType=noiseType, algo='BLS', ofac=ofac, L=L, R=R, res=res, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, FAPSNR_mode=0, seedValue=seedValue)
-    resultTCF <- evd(period, depth, duration, noiseType=noiseType, algo='TCF', ofac=ofac, L=L, R=R, res=res, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, FAPSNR_mode=0, seedValue=seedValue)
-    fapBLS <- resultBLS[1]
-    fapTCF <- resultTCF[1]
-
-    bpergram <- boutput$spec
-    tpergram <- toutput$outpow
-
-    gp <- gausspr(t, y)
-    predicted_y <- predict(gp, t)
-
-    max.p = 5
-    max.q = 5
-    max.d = 0
-    ARIMA.fit = auto.arima(diff(y), stepwise=FALSE, approximation=FALSE, seasonal=FALSE, max.p=max.p, max.q=max.q, max.d=max.d, d=0) #leave d as 0. 
-
-    cexVal <-1.5
-    layout(matrix(c(
-        1, 1, 1, 2, 2, 2,
-        3, 3, 3, 4, 4, 4
-    ), ncol = 6, nrow=2, byrow=TRUE))
-
-    plot(t, y, type='l')
-    lines(t, predicted_y, col='red')
-
-    plot(diff(y), col='black', type='l')
-    lines(fitted(ARIMA.fit), col='red')
-
-    plot(bcobsxy50$x/24, bpergram, type = 'l', main="BLS periodogram", log='x', xlab='Period (days) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-    lines(bcobsxy50$x/24, bcobsxy50$fitted, type = 'l', col='red', lwd=3.0)
-    # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
-    # lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
-    rug(bcobsxy50$knots/24)
-    # legend("topleft", lty = 1, 
-    #     col= c("red"), text.col = "black", 
-    #     legend=c("trend fit"), bty="n", cex=1.5, pt.cex = 1
-    # )
-    text(2/24, 1.62e-4, paste0(sprintf("SNR = %.1f, FAP = %.1e", calculateSNR(boutput$periodsTested, bpergram), fapBLS), "%"), cex=1.8, adj=0)
-    plot(tcobsxy50$x/24, tpergram, type = 'l', main="TCF periodogram", log='x', xlab='Period (days) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-    lines(tcobsxy50$x/24, tcobsxy50$fitted, type = 'l', col='red', lwd=3.0)
-    # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
-    # lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
-    rug(tcobsxy50$knots/24)
-    # legend("topleft", lty = 1, 
-    #     col= c("red"), text.col = "black", 
-    #     legend=c("trend fit"), bty="n", cex=1.5, pt.cex = 1
-    # )
-    text(2/24, 107, paste0(sprintf("SNR = %.1f, FAP = %.1e", calculateSNR(tperiodsToTry * res, tpergram), fapTCF), "%"), cex=1.8, adj=0)
-
-    blsFalsePeakAInd <- which(rev(bpergram) > 3e-5)[7]
-    blsFalsePeakBInd <- head(which(bpergram > 4e-5), n=1)
-
-    x <- bcobsxy50$x/24
-    print(sprintf("BLS false peak A at period = %f days with power = %f", rev(x)[blsFalsePeakAInd], rev(bpergram)[blsFalsePeakAInd]))
-    print(sprintf("BLS false peak B at period = %f days with power = %f", x[blsFalsePeakBInd], bpergram[blsFalsePeakBInd]))
-}

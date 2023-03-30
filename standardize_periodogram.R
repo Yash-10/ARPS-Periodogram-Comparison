@@ -1,23 +1,28 @@
-#################################################################################################
-# Aim: Standardizes a given periodogram.
+# ***************************************************************************
+# Author: Yash Gondhalekar  Last updated: March, 2023
 
-# Notes:
-# 1. The function standardPeriodogram can be used for getting the standardized periodogram and
-# (optionally) plotting the results.
-#   - An example run is: standardPeriodogram(1, 0.01, 1) - which simulates a period = 1 day,
-#     depth = 0.01%, and duration = 1 hr planet. By default BLS is run but can be changed using
-#    the `algo` argument.
-# 2. In this code, tcf periods are scaled by `res` before passing into tcf() since tcf works with
-# cadences rather than absolute time values, unlike BLS.
-#    - The period tcf prints on terminal would differ from the period at max(power) shown in the
-#      plot.
-#    - Such scaling is also done in eva_periodogram.R since TCF calculates periodogram in units
-#      of cadences rather than absolute time values.
-# 3. **Important**
-#    - The arguments ar, ma, and order are obsolete. The getLightCurve function, to which these
-#      were intended to passed have these values harcoded inside that function. So passing
-#      different values will not have any difference.
-#################################################################################################
+# Description: This script contains code for standardizing a periodogram.
+#              The function standardPeriodogram can be used for getting the
+#              standardized periodogram and (optionally) plotting the results.
+#              In this code, tcf periods are scaled by `res` before passing
+#              into tcf() since tcf works with cadences rather than absolute
+#              time values, unlike BLS. The period tcf prints on terminal
+#              would differ from the period at max(power) shown in the plot.
+#              Such a scaling is also done in eva_periodogram.R since TCF
+#              calculates periodogram in units of cadences rather than
+#              absolute time values.
+#              IMPORTANT: The arguments ar, ma, and order are obsolete. The
+#              getLightCurve function, to which these were intended to passed
+#              have these values harcoded inside that function. So passing
+#              different values will not have any difference. Future versions
+#              would try solving for this caveat.
+
+# Example:
+# An example run is: standardPeriodogram(1, 0.01, 1) - which simulates a
+# period = 1 day, depth = 0.01%, and duration = 1 hr planet. By default BLS is
+# run but can be changed using the `algo` argument.
+
+# ***************************************************************************
 
 library(moments)
 library('cobs')
@@ -156,16 +161,6 @@ standardPeriodogram <- function(
         residTCF <- getResidForTCF(y)
         # Run TCF on ARIMA residual.
         output <- tcf(residTCF, p.try = periodsToTry*res, print.output = TRUE)
-        # output$inper = output$inper / 2
-
-        # lst <- sort(output$outpow, index.return=TRUE, decreasing=TRUE)
-        # lstt <- lapply(lst, `[`, lst$x %in% head(unique(lst$x),16))
-        # print("============")
-        # for (x in lstt$ix) {
-        #     print(output$outpow[x])
-        #     print(periodsToTry[x]/24)
-        # }
-        # print("==============")
     }
 
     # (1) Remove trend in periodogram

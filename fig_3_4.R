@@ -1,3 +1,14 @@
+# ***************************************************************************
+# Author: Yash Gondhalekar  Last updated: March, 2023
+
+# Description: This script contains code for creating figures 3 and 4 from
+#			   our paper. Values used for plotting are hardcoded inside the
+# 			   script since they were separately calculated. See the Google
+#			   Colab example tutorial for details on how to get these values
+#			   in the first place.
+
+# ***************************************************************************
+
 # NTRANSITS
 tcfColor <- '#FC9272' #'#225ea8' # '#fd8d3c' # '#fdae6b'
 blsColor <-  '#1C9099' #'#d95f0e'

@@ -1,8 +1,18 @@
-#################################################
-# Note:
-# 1. Here, TCF periods are scaled by `res` since TCF calculates periodogram in units of cadence rather than absolute time values.
-# 2. So this means the periods passed to TCF and BLS, in terms of values, could be different, but scientifically they are doing the same thing.
-# 3. All of the period values printed on terminal are in hours, unless explicitly mentioned anywhere.
+# ***************************************************************************
+# Author: Yash Gondhalekar  Last updated: March, 2023
+
+# Description: This script contains the functions used for the extreme value
+#              application. The `evd` function is the driver code.
+
+#        Note:
+#           1. Here, TCF periods are scaled by `res` since TCF calculates the
+#              periodogram in units of cadence rather than absolute time values.
+#           2. So this means the periods passed to TCF and BLS, in terms of
+#              values, could be different, but they are using the same periods.
+#           3. All of the period values printed on terminal are in hours,
+#              unless explicitly mentioned anywhere.
+
+# ***************************************************************************
 
 
 library('extRemes')
@@ -14,6 +24,7 @@ source('utils.R')
 library('goftest')  # install.packages("goftest")
 library('gbutils')  # https://search.r-project.org/CRAN/refmans/gbutils/html/cdf2quantile.html
 
+# Resample a given vector.
 boot_stat <- function(original_vector, resample_vector) {
     original_vector[resample_vector]
 }
@@ -85,6 +96,8 @@ evd <- function(
     lctype="sim",  # Light curve type. Allowed values: sim or real. This parameter controls whether the light curve needs to be simulated or is a real light curve. In the former case, period, depth, and duration is needed at the least. In the latter case, y and t are needed as input.
     applyGPRforBLS=FALSE,  # This controls whether Gaussian Process Regression needs to be run before BLS.
     applyARMAforBLS=FALSE  # This controls whethter an ARMA model must be fit to the original light curve before applying BLS.
+    # It is not recommended to use `applyARMAforBLS` since the ARMA model was shown to significantly model the transits as well.
+    # This issue does not occur when ARMA is used on the differenced light curve before TCF since the no. of points of the transit in the differenced ligt curve is very small.
 ) {
     # TODO: Add comment if any assumption about Nan is assumed by this code.
     # Perform some checks.
@@ -125,10 +138,12 @@ evd <- function(
         t <- unlist(yt[2])
     }
 
+    # Error handling.
     if (lctype == 'sim' & (any(is.na(y)) | any(is.na(t)))) {
         stop("Atleast one value in the observations or the time epochs is NaN! while lctype is sim!")
     }
 
+    # Get the ACF estimate.
     acfEstimate <- acf(y, plot = FALSE, na.action = na.pass)
     print(sprintf("[parameters: gaussStd = %f, ar = %f, ma = %f, order = %s] ACF at lag-1: %s", gaussStd, ar, ma, paste(order, collapse=" "), acfEstimate$acf[[2]]))
 
@@ -140,39 +155,16 @@ evd <- function(
     }
 
     # (1) Bootstrap the time series.
-    # The reason why we first bootstrap the time series and then take block maxima rather than simply bootstrapping block maxima of original series is mentioned in first paragraph in https://personal.eur.nl/zhou/Research/WP/bootstrap_revision.pdf
-    # Non-parametric bootstrap with replacement of blocks.
-    # if (noiseType == 1) {
-    #     bootTS <- replicate(R, replicate(length(y), sample(y, 1, replace=TRUE)))
-    #     bootTS <- aperm(bootTS)  # This just permutes the dimension of bootTS - rows become columns and columns become rows - just done for easier indexing further in the code.
-    #     # At this point, bootTS will be of shape (R, length(y)).
-    # }
     # Note that bootstrapping, by definition, is resampling "with replacement": https://en.wikipedia.org/wiki/Bootstrapping_(statistics)
-    # We use block resampling irrespective of the noise (i.e. block resampling even if noise is uncorrelated in white Gaussian noise), because the underlying time-series is in the form of repeated box-like shapes, and we would like to preserve that in order to look more like the original time-series.
-    # Note: A general option for time-series with independent data is to use: random, uniform bootstrapping, but that can distort the repeating box-like shapes in the time series.
-    # bootTS <- tsboot(ts(y), statistic=statFunc, R=R, sim="fixed", l=period*24, n.sim=length(y))$t  # block resampling with fixed block lengths
-    # Here, the block length is chosen to be slightly larger than the period (so that each block atleast contains a period -- a heuristic).
-    # This answer: https://stats.stackexchange.com/a/317724 seems to say that block resampling resamples blocks with replacement.
     # Also note that Suveges says that the marginal distribution of each of the bootstrapped resample time series must approximately be the same as the original time series.
 
     # bootTS <- replicate(R, sample(y, length(y), replace=TRUE))
     # bootTS <- aperm(bootTS)  # This just permutes the dimension of bootTS - rows become columns and columns become rows - just done for easier indexing further in the code.
     set.seed(seedValue)
     bootTS <- boot(y, statistic=boot_stat, R=R)$t
-    # if (noiseType == 2 | applyGPRforBLS | lctype == 'real') {
-    #     if (algo == 'BLS') {
-    #         bootTS <- boot(getGPRResid(t, y), statistic=boot_stat, R=R)$t
-    #     }
-    #     else if (algo == 'TCF') {
-    #         bootTS <- boot(c(NA, getResidForTCF(y)), statistic=boot_stat, R=R)$t
-    #     }
-    # }
-    # else {
-    #     bootTS <- boot(y, statistic=boot_stat, R=R)$t
-    # }
 
-    # Note: The below commented out code can be used to test if the bootstrap resampling suggests the data is white noise or not.
-    # However, it is observed in around 1 in 500 cases, the box test suggests the bootstrapped time series is not white noise. But we ignore that since 1/500 is a low probability.
+    # NOTE: The below commented out lines of code can be used to test if the bootstrap resampling suggests the data is white noise or not.
+    # However, it was observed in around 1 in 500 cases, the box test suggested the bootstrapped time series is not white noise. But we ignore that since 1/500 is a low probability.
     # for (j in 1:R) {
     #     lJStats <- Box.test(bootTS[j,], lag = 1, type = "Ljung")
     #     print(lJStats[3])
@@ -181,6 +173,8 @@ evd <- function(
     #     })
     # }
 
+    # Ensure dimensions of the bootstrapped set is as expected.
+    # There must be R bootstrapped light curves, each with length = length(y).
     stopifnot(exprs={
         dim(bootTS) == c(R, length(y))
     })
@@ -191,6 +185,7 @@ evd <- function(
         stop("Atleast one frequency in the frequency grid is NaN!")
     }
 
+    # Some error checking.
     stopifnot(exprs={
         all(freqGrid <= res / 2)  # No frequency must be greater than the Nyquist frequency.
         length(freqGrid) >= K * L  # K*L is ideally going to be less than N, otherwise the bootstrap has no benefit in terms of compuation time.
@@ -205,7 +200,7 @@ evd <- function(
             y <- getGPRResid(t, y)  # Run Gaussian Processes Regression on light curve if autoregressive noise is present.
         }
         if (applyARMAforBLS) {
-            y <- getARMAresid(y)
+            y <- getARMAresid(y)  # Run ARMA before BLS is applied. This was shown to deteriorate performance and is NOT recommended.
         }
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
         ptested <- output$periodsTested
@@ -237,20 +232,21 @@ evd <- function(
         }
         periodAtMaxOutput <- periodsToTry[which.max(output)]
     }
+    # Calculate SNR of the periodogram peak.
     if (algo == "BLS") {
         snr <- calculateSNR(ptested, output, lambdaTrend=1, oneSideWindowLength=1500)
     }
     else {
         snr <- calculateSNR(periodsToTry * res, output, lambdaTrend=1, oneSideWindowLength=1500)
     }
-    if (snr < 0) {  # Ideally this will not occur because periodogram peak will mostly never be negative and IQR, by definition, cannot be negative.
+    if (snr < 0) {  # Ideally this will not occur because periodogram peaks will never be negative (unless some strong detrending has been applied) and IQR, by definition, cannot be negative.
         print('Negative SNR, returning NA score.')
         score <- NA
     }
     print(sprintf("Signal-to-noise ratio of periodogram peak = %f", snr))
 
     # (2) Max of each partial periodogram
-    # Note that from Suveges paper, the reason for doing block maxima is: "The principal goal is to decrease the computational load due to a bootstrap. At the same time, the reduced frequency set should reflect the fundamental characteristics of a full periodogram: ..."
+    # Note that from the Suveges, 2014 paper, the reason for doing block maxima is: "The principal goal is to decrease the computational load due to a bootstrap. At the same time, the reduced frequency set should reflect the fundamental characteristics of a full periodogram: ..."
     maxima_R <- c()
     for (j in 1:R) {
         KLfreqs <- freqdivideFreqGrid(freqGrid, L, K, seedValue=seedValue)
@@ -293,7 +289,7 @@ evd <- function(
             }
         }
 
-        # *** Some notes on declustering below ***
+        # *** Some notes on declustering below -- DECLUSTERING IS NOT USED IN THIS CODE ***
         # Note: If we use oversampling, then while it increases the flexibility to choose frequencies in the frequency grid, it also has important issues as noted in https://academic.oup.com/mnras/article/388/4/1693/981666:
         # (1) "if we oversample the periodogram, the powers at the sampled frequencies are no longer independent..."
         # To solve the above problem, we decluster the partial periodograms. Even without oversampling, the peaks tend to be clustered and we need to decluster the peaks. One can see performance with and without declustering.
@@ -315,7 +311,6 @@ evd <- function(
     }
 
     print("Done calculating maxima...")
-    # print(maxima_R)
 
     # (3) GEV modelling of partial periodograms' maxima
     fitEVD <- fevd(maxima_R, type='GEV')
@@ -413,7 +408,7 @@ evd <- function(
 
     return (c(score, perResults))
 
-    ###### Interpreting what FAP is good (from Baluev: https://academic.oup.com/mnras/article/385/3/1279/1010111):
+    ###### Interpreting what FAP is good (from Baluev, 2008 paper: https://academic.oup.com/mnras/article/385/3/1279/1010111):
     # (1) > Given some small critical value FAP* (usually between 10−3 and 0.1), we can claim that the candidate signal is statistically
     # significant (if FAP < FAP*) or is not (if FAP > FAP*)
 }
@@ -481,19 +476,16 @@ periodDurationDepthTest <- function(
 }
 
 
-################################## RESOURCES ##################################
-############## IMPORTANT REFERENCES #############
-# http://quantdevel.com/BootstrappingTimeSeriesData/BootstrappingTimeSeriesData.pdf (About bootstrapping in time-series data).
+# ********** Some important resources **********
 # http://www.ccpo.odu.edu/~klinck/Reprints/PDF/omeyHUB2009.pdf (suggested by Suveges, 2014).
-# See about aliasing at the end of this page, for example: https://docs.gammapy.org/0.8/time/period.html and this also: https://hea-www.harvard.edu/~swolk/thesis/period/node5.html
 # See discussion on period/frequency spacing considerations for BLS: https://johnh2o2.github.io/cuvarbase/bls.html#period-spacing-considerations
 # Mathematical description of the Anderson-Darling test: https://bookdown.org/egarpor/NP-UC3M/nptests-dist.html
 
-########### Resources for extreme value statistics ##########
-# (1) http://personal.cityu.edu.hk/xizhou/first-draft-report.pdf
-# (2) Playlist on Extreme Value Statistics: https://youtube.com/playlist?list=PLh35GyCXlQaTJtTq4OQGzMblwEcVIWW9n
-# https://www.lmd.ens.fr/E2C2/class/naveauRomaniaE2C207.pdf
+# Resources for extreme value statistics:
+    # (1) http://personal.cityu.edu.hk/xizhou/first-draft-report.pdf
+    # (2) Playlist on Extreme Value Statistics: https://youtube.com/playlist?list=PLh35GyCXlQaTJtTq4OQGzMblwEcVIWW9n
+    # (3) https://www.lmd.ens.fr/E2C2/class/naveauRomaniaE2C207.pdf
 
-#############################################################
+# Any other papers:
 # Good set of papers: https://arxiv.org/pdf/1712.00734.pdf
 

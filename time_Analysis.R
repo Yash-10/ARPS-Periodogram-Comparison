@@ -1,4 +1,13 @@
-# in seconds
+# ***************************************************************************
+# Author: Yash Gondhalekar  Last updated: March, 2023
+
+# Description: This script was used for making figures in Appendix C in our
+#			   paper, which is about the time analysis. Values used are
+#			   harcoded since this script is only used for plotting the results.
+#			   For getting the execution times, see the function `timeAnalysis`
+#			   inside `utils.R`.
+
+# ***************************************************************************
 
 tcfColor <- '#FC9272' #'#225ea8' # '#fd8d3c' # '#fdae6b'
 blsColor <-  '#1C9099' #'#d95f0e'
