@@ -89,5 +89,8 @@ Most of our analysis used simulations. The applicability of our method was descr
 ## Bugs or issues
 If you find something not working as expected or anything weird, we would like to know and improve it! Please feel free to open an issue in the issue tracker or [send an email](yashgondhalekar567@gmail.com).
 
+## Current status (as of March 2023)
+The code was tested using some internal quick tests which were designed while writing the code. These tests are not in this repository. It does not have a dedicated `tests/` folder where ideally all the test scripts can be written. This is planned for the future. The code, as of now, is not optimized for speed. However, it is expected that it runs without any troubles on most use cases. Future versions of the code might focus on these issues.
+
 ## License
 [MIT](https://github.com/Yash-10/arps/blob/main/LICENSE)
