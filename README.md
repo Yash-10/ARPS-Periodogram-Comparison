@@ -41,10 +41,13 @@ gfortran -c main_tcf.f95
 gfortran -shared median.o rand_tools.o tcf.o main_tcf.o  # will create a.out
 ```
 
-
 3. Edit the shared library paths inside `BLS/bls.R` and `TCF3.0/intf_libtcf.R` (locate the line `dyn.load(...)` at the top of these files) to match the path to the BLS's `a.out` and TCF's `a.out` files.
 
-**Note**: While BLS's and TCF's (backend) implementation is written in Fortran, their usage is facilitated in R (frontend). That is why the above procedure is used.
+**Note**:
+
+1. While BLS's and TCF's (backend) implementation is written in Fortran, their usage is facilitated in R (frontend). That is why the above procedure is used.
+2. The installation instructions here have been tested only on the Ubuntu OS.
+
 
 ## Usage
 
