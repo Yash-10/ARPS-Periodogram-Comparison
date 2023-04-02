@@ -23,7 +23,7 @@ R CMD SHLIB eebls.f -o a.out  # will create a.out
 R CMD SHLIB main_tcf.f95 median.f90 rand_tools.f95 tcf.f95 -o a.out  # will create a.out
 ```
 
-Alternatively, one can achieve the same using a set of terminal commands:
+Alternatively, one can achieve the same using a set of terminal commands ([`gfortran`](https://fortran-lang.org/en/learn/os_setup/install_gfortran/) must be installed for this):
 ```bash
 # For BLS
 cd BLS
