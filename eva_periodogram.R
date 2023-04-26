@@ -382,19 +382,7 @@ evd <- function(
 
     if (FAPSNR_mode == 0 || FAPSNR_mode == 2) {
         print("Calculating FAP...")
-        if (lctype == "sim") {
-            # 1.5 hours error margin used.
-            if (periodAtMaxOutput < period * 24 - 1.5 || periodAtMaxOutput > period * 24 + 1.5) {
-                warning("Periodogram peak is far away from the actual period which means the periodogram is fitting the noise. FAP = 1 will be returned.")
-                fap <- 1.0
-            }
-            else {
-                fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), toCheck)
-            }
-        }
-        else {
-            fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), toCheck)
-        }
+        fap <- calculateFAP(location, scale, shape, K, L, length(freqGrid), toCheck)
         print(sprintf("FAP = %.10f", fap))
     }
 
@@ -488,4 +476,3 @@ periodDurationDepthTest <- function(
 
 # Any other papers:
 # Good set of papers: https://arxiv.org/pdf/1712.00734.pdf
-
