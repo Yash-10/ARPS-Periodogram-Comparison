@@ -22,6 +22,7 @@ library(reticulate)
 library('microbenchmark')
 library('kernlab')
 library(moments)
+library('caTools')
 
 source_python("python_utils.py")
 
@@ -139,12 +140,10 @@ getLightCurve <- function(
 getResidForTCF <- function(
     y  # Time series (must not be differenced because it is done internally).
 ) {
-    max.p = 5
-    max.q = 5
+    max.p = 10
+    max.q = 10
     max.d = 0
     ARIMA.fit = auto.arima(diff(y), stepwise=FALSE, approximation=FALSE, seasonal=FALSE, max.p=max.p, max.q=max.q, max.d=max.d) # leave d as 0. 
-    print(ARIMA.fit)
-    # return (ARIMA.fit)
     ARIMA.resid = residuals(ARIMA.fit)
     return (ARIMA.resid)
 }
@@ -153,8 +152,8 @@ getResidForTCF <- function(
 getARMAresid <- function(
     y
 ) {
-    max.p = 5
-    max.q = 5
+    max.p = 10
+    max.q = 10
     max.d = 0
     ARMA.fit = auto.arima(y, stepwise=FALSE, approximation=FALSE, seasonal=FALSE, max.p=max.p, max.q=max.q, max.d=max.d, d=0) #leave d as 0. 
     ARMA.resid = residuals(ARMA.fit)
@@ -172,7 +171,7 @@ getGPRResid <- function(
 }
 
 # THIS IS A TRAIL FUNCTION, NOT USED ANYWHERE : It can be used to undifference a light curve.
-# It is not guaranteed to work as expected.
+# **Warning**: It is not guaranteed to work as expected.
 undifferenceATimeSeries <- function(
     differenced,  # The differenced time series.
     orig_first_observation  # The first observation value in the original time series.
@@ -349,4 +348,102 @@ freqdivideFreqGrid <- function(freqGrid, L, K, seedValue=1) {
     freqConsider <- freqGrid[safeDist:endIndex]
     KLfreqs <- rand_parts(freqConsider, n=L, l=K)
     return (unlist(KLfreqs))
+}
+
+
+computeScatter <- function(
+    data,     # The data for which the scatter needs to be computed. This is generally the detrended periodogram.
+    windowLength=1000,  # Window length on one side of the focal point. The actual window length used is 2*windowLength.
+    algo="BLS"          # Periodogram algorithm to use. BLS or TCF.
+){
+
+    runmad(data, k=windowLength, endrule='mad')
+
+    # ** LIMITATIONS of this function **
+    # 1. windowLength must be <= length(data) / 2
+    # scatterVals = c()
+    # for (i in 1:length(data)) {
+    #     if (i <= windowLength) {
+    #         u = 2 * windowLength
+    #         l = i + 1
+    #         scatterVal = mad(c(data[1:i], data[l:u]))
+    #         stopifnot(exprs={
+    #             length(c(data[1:i], data[l:u])) == 2 * windowLength
+    #         })
+    #         # print(length(c(data[1:i], data[l:u])))
+    #         scatterVals <- append(scatterVals, scatterVal)
+    #     }
+    #     else if (i + windowLength >= length(data)) {
+    #         ll = i - 2 * windowLength - i + length(data)
+    #         ul = i - 1
+    #         ls = i
+    #         us = length(data)-1
+    #         # stopifnot(exprs={
+    #         #     length(c(data[ll:ul], data[ls:us])) == 2 * windowLength
+    #         # })
+    #         # print(length(c(data[ll:ul], data[ls:us])))
+    #         scatterVal = mad(c(data[ll:ul], data[ls:us]))
+    #         scatterVals <- append(scatterVals, scatterVal)
+    #     }
+    #     else {
+    #         l_ = i-windowLength
+    #         u_ = i+windowLength-1
+    #         stopifnot(exprs={
+    #             length(data[l_:u_]) == 2 * windowLength
+    #         })
+    #         scatterVal <- mad(data[l_:u_])
+    #         scatterVals <- append(scatterVals, scatterVal)
+    #     }
+    # }
+    # stopifnot(exprs={
+    #     length(scatterVals) == length(data)
+    # })
+    # return (scatterVals)
+}
+
+standardizeAPeriodogram <- function(
+    output,
+    periodsToTry=NULL,  # This argument is only needed when algo="TCF" and not needed for algo="BLS".
+    algo="BLS",
+    mode='detrend',  # Other option is 'detrend' in which case only detrending is performed, no normalization using scatter is performed.
+    scatterWindowLength=1001
+) {
+    lambdaTrend <- 1
+    # lambdaScatter <- 1
+
+    # (1) Remove trend.
+    if (algo == "BLS") {
+        cobsxy50 <- cobs(log10(output$periodsTested), output$spec, ic='BIC', tau=0.5, lambda=lambdaTrend)  # If tau = 0.5 and lambda = 0 => Median regression fit.
+    }
+    else if (algo == "TCF") {
+        cobsxy50 <- cobs(log10(periodsToTry), output$outpow, ic='BIC', tau=0.5, lambda=lambdaTrend)
+    }
+
+    periodogramTrendRemoved <- cobsxy50$resid
+
+    # TLS removes the mean from the detrended periodogram so that mean is zero.
+    # See https://github.com/hippke/tls/blob/71da590d3e199264822db425ab9f9f633253986e/transitleastsquares/stats.py
+    # But we don't know why it would be needed. We don't remove the mean.
+    # periodogramTrendRemoved <- periodogramTrendRemoved - mean(periodogramTrendRemoved)
+
+    if (mode == 'detrend_normalize') {
+        # (2) Remove local scatter in periodogram.
+        Scatter <- computeScatter(periodogramTrendRemoved, windowLength=scatterWindowLength)
+        if (algo == "BLS") {
+            lambdaScatter <- 1
+            cobsScatter <- cobs(log10(output$periodsTested), Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
+        }
+        else if (algo == "TCF") {
+            lambdaScatter <- 1
+            cobsScatter <- cobs(log10(periodsToTry), Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
+        }
+        # We do not simply divide by the "global" standard deviation.
+        # cobsScatter <- sd(periodogramTrendRemoved)
+
+        normalizedPeriodogram <- periodogramTrendRemoved / cobsScatter$fitted
+        return (normalizedPeriodogram);
+    }
+    else {  # mode == 'detrend'
+        return (periodogramTrendRemoved);
+    }
 }

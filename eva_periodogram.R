@@ -95,9 +95,10 @@ evd <- function(
     FAPSNR_mode=0,  # 0 means only FAP, 1 means only SNR, and 2 means a linear combination of FAP and SNR.
     lctype="sim",  # Light curve type. Allowed values: sim or real. This parameter controls whether the light curve needs to be simulated or is a real light curve. In the former case, period, depth, and duration is needed at the least. In the latter case, y and t are needed as input.
     applyGPRforBLS=FALSE,  # This controls whether Gaussian Process Regression needs to be run before BLS.
-    applyARMAforBLS=FALSE  # This controls whethter an ARMA model must be fit to the original light curve before applying BLS.
+    applyARMAforBLS=FALSE,  # This controls whethter an ARMA model must be fit to the original light curve before applying BLS.
     # It is not recommended to use `applyARMAforBLS` since the ARMA model was shown to significantly model the transits as well.
     # This issue does not occur when ARMA is used on the differenced light curve before TCF since the no. of points of the transit in the differenced ligt curve is very small.
+    scatterWindowLength=1001
 ) {
     # TODO: Add comment if any assumption about Nan is assumed by this code.
     # Perform some checks.
@@ -109,7 +110,7 @@ evd <- function(
     }
     if (lctype == "real") {
         period <- depth <- duration <- noiseType <- ntransits <- ar <- ma <- order <- gaussStd <- NULL
-        significanceMode <- 'max'  # Since for real light curves, passing `expected_peak` is not possible.
+        significanceMode <- 'max'  # Since for real light curves, passing `expected_peak` is not possible since the period is not known.
         res <- 2
     }
 
@@ -204,9 +205,11 @@ evd <- function(
         }
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
         ptested <- output$periodsTested
+        scatterWindowLength <- length(ptested) / 10
+        print(sprintf('Scatter window length for standardization used: %d', as.integer(scatterWindowLength)))
         perResults <- c(output$per, output$depth, output$dur)
         if (useStandardization) {
-            output <- standardizeAPeriodogram(output, periodsToTry=NULL, algo="BLS", mode=mode)
+            output <- standardizeAPeriodogram(output, periodsToTry=NULL, algo="BLS", mode=mode, scatterWindowLength=scatterWindowLength)
         }
         else {
             output <- output$spec
@@ -225,7 +228,9 @@ evd <- function(
         powmax.loc = which.max(output$outpow)
         perResults <- c(output$inper[powmax.loc]/res, output$outdepth[powmax.loc], output$outdur[powmax.loc]/res)
         if (useStandardization) {
-            output <- standardizeAPeriodogram(output, periodsToTry=periodsToTry, algo="TCF", mode=mode)
+            scatterWindowLength <- length(periodsToTry) / 10
+            print(sprintf('Scatter window length for standardization used: %d', as.integer(scatterWindowLength)))
+            output <- standardizeAPeriodogram(output, periodsToTry=periodsToTry, algo="TCF", mode=mode, scatterWindowLength=scatterWindowLength)
         }
         else {
             output <- output$outpow
@@ -264,7 +269,20 @@ evd <- function(
         if (algo == "BLS") {
             out <- bls(bootTS[j,], t, per.min=min(1/KLfreqs), per.max=max(1/KLfreqs), nper=K*L, bls.plot = FALSE, print.output = FALSE)
             if (useStandardization) {
-                partialPeriodogram <- standardizeAPeriodogram(out, periodsToTry=NULL, algo="BLS", mode=mode)  # For BLS, the periods tested is gotten from the R object `out`, hence we do not need to pass periodsToTy.
+                ptestedPartial <- out$periodsTested
+                # Compute scatter in windows only if the length of the periodogram on bootstrapped light curve is suficiently high.
+                # By sufficiently high, we use 2000 as the limit.
+                # The reason for doing this is because we have found the scatter estimate to be unreliable/noisy if the window size is too small.
+                # Since these partial periodograms are much smaller than the original periodogram, we check this condition so that windows are used only when really needed.
+                # *Important* : The length of partial periodograms = K * L, so it is entirely fixed by the parameters K and L. So unless those are changed, the partial periodograms would have the same length.
+                if (length(ptestedPartial) > 2000) {
+                    scatterWindowLength <- length(ptestedPartial) / 10
+                }
+                else {
+                    scatterWindowLength <- length(ptestedPartial)
+                }
+                partialPeriodogram <- standardizeAPeriodogram(out, periodsToTry=NULL, algo="BLS", mode=mode, scatterWindowLength=scatterWindowLength)  # For BLS, the periods tested is gotten from the R object `out`, hence we do not need to pass periodsToTy.
+                # print(sprintf('Scatter window length for standardization used: %d', scatterWindowLength))
             }
             else {
                 partialPeriodogram <- out$spec
@@ -282,7 +300,14 @@ evd <- function(
             # NOTE: It is important not to remove NA in this way for the original TCF periodogram already computed above, but should be done for the bootstrapped ligth curve's periodogram for TCF..
             out <- tcf(diff(bootTS[j,][!is.na(bootTS[j,])]), p.try = pToTry * res, print.output = FALSE)  # Multiplying by res because TCF works according to cadence rather than actual time values, unlike BLS. Doing this ensures, TCF still peaks at 72 hr for different res values, for example.
             if (useStandardization) {
-                partialPeriodogram <- standardizeAPeriodogram(out, periodsToTry = pToTry, algo="TCF", mode=mode)
+                ptestedPartial <- pToTry
+                if (length(ptestedPartial) > 2000) {
+                    scatterWindowLength <- length(ptestedPartial) / 10
+                }
+                else {
+                    scatterWindowLength <- length(ptestedPartial)
+                }
+                partialPeriodogram <- standardizeAPeriodogram(out, periodsToTry = pToTry, algo="TCF", mode=mode, scatterWindowLength=scatterWindowLength)
             }
             else {
                 partialPeriodogram <- out$outpow
@@ -304,6 +329,9 @@ evd <- function(
         # ****************************************
         maxima_R <- append(maxima_R, max(partialPeriodogram))
     }
+
+    print(sprintf("Maxima of the R maxima: %f", max(maxima_R)))
+    print(sprintf("Maximum of the original periodogram: %f", max(output)))
 
     if (FAPSNR_mode == 1) {
         score <- 1 / snr
@@ -476,3 +504,4 @@ periodDurationDepthTest <- function(
 
 # Any other papers:
 # Good set of papers: https://arxiv.org/pdf/1712.00734.pdf
+

@@ -1,28 +1,23 @@
-# ***************************************************************************
-# Author: Yash Gondhalekar  Last updated: March, 2023
+#################################################################################################
+# Aim: Standardizes a given periodogram.
 
-# Description: This script contains code for standardizing a periodogram.
-#              The function standardPeriodogram can be used for getting the
-#              standardized periodogram and (optionally) plotting the results.
-#              In this code, tcf periods are scaled by `res` before passing
-#              into tcf() since tcf works with cadences rather than absolute
-#              time values, unlike BLS. The period tcf prints on terminal
-#              would differ from the period at max(power) shown in the plot.
-#              Such a scaling is also done in eva_periodogram.R since TCF
-#              calculates periodogram in units of cadences rather than
-#              absolute time values.
-#              IMPORTANT: The arguments ar, ma, and order are obsolete. The
-#              getLightCurve function, to which these were intended to passed
-#              have these values harcoded inside that function. So passing
-#              different values will not have any difference. Future versions
-#              would try solving for this caveat.
-
-# Example:
-# An example run is: standardPeriodogram(1, 0.01, 1) - which simulates a
-# period = 1 day, depth = 0.01%, and duration = 1 hr planet. By default BLS is
-# run but can be changed using the `algo` argument.
-
-# ***************************************************************************
+# Notes:
+# 1. The function standardPeriodogram can be used for getting the standardized periodogram and
+# (optionally) plotting the results.
+#   - An example run is: standardPeriodogram(1, 0.01, 1) - which simulates a period = 1 day,
+#     depth = 0.01%, and duration = 1 hr planet. By default BLS is run but can be changed using
+#    the `algo` argument.
+# 2. In this code, tcf periods are scaled by `res` before passing into tcf() since tcf works with
+# cadences rather than absolute time values, unlike BLS.
+#    - The period tcf prints on terminal would differ from the period at max(power) shown in the
+#      plot.
+#    - Such scaling is also done in eva_periodogram.R since TCF calculates periodogram in units
+#      of cadences rather than absolute time values.
+# 3. **Important**
+#    - The arguments ar, ma, and order are obsolete. The getLightCurve function, to which these
+#      were intended to passed have these values harcoded inside that function. So passing
+#      different values will not have any difference.
+#################################################################################################
 
 library(moments)
 library('cobs')
@@ -132,9 +127,6 @@ standardPeriodogram <- function(
     # Create frequency grid.
     freqGrid <- getFreqGridToTest(t, period, duration, res=res, ofac=ofac, useOptimalFreqSampling=useOptimalFreqSampling, algo=algo, lctype=lctype)
 
-    print(min(freqGrid))
-    print(max(freqGrid))
-
     stopifnot(exprs={
         all(freqGrid <= res / 2)
     })
@@ -161,40 +153,56 @@ standardPeriodogram <- function(
         residTCF <- getResidForTCF(y)
         # Run TCF on ARIMA residual.
         output <- tcf(residTCF, p.try = periodsToTry*res, print.output = TRUE)
+        # output$inper = output$inper / 2
+
+        # lst <- sort(output$outpow, index.return=TRUE, decreasing=TRUE)
+        # lstt <- lapply(lst, `[`, lst$x %in% head(unique(lst$x),16))
+        # print("============")
+        # for (x in lstt$ix) {
+        #     print(output$outpow[x])
+        #     print(periodsToTry[x]/24)
+        # }
+        # print("==============")
     }
 
     # (1) Remove trend in periodogram
     # We use constraint='increase'. But that condition may be removed.
     if (algo == "BLS") {
         lambdaTrend <- 1
-        cobsxy50 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")  # If tau = 0.5 and lambda = 0 => Median regression fit.
-        cobsxy501 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.9, lambda=lambdaTrend)
-        cobsxy502 <- cobs(output$periodsTested, output$spec, ic='BIC', tau=0.99, lambda=lambdaTrend)
+        cobsxy50 <- cobs(log10(output$periodsTested), output$spec, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")  # If tau = 0.5 and lambda = 0 => Median regression fit.
+        cobsxy501 <- cobs(log10(output$periodsTested), output$spec, ic='BIC', tau=0.9, lambda=lambdaTrend)
+        cobsxy502 <- cobs(log10(output$periodsTested), output$spec, ic='BIC', tau=0.99, lambda=lambdaTrend)
     }
     else if (algo == "TCF") {
         lambdaTrend <- 1
-        cobsxy50 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")
-        cobsxy501 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.9, lambda=lambdaTrend)
-        cobsxy502 <- cobs(periodsToTry, output$outpow, ic='BIC', tau=0.99, lambda=lambdaTrend)
+        cobsxy50 <- cobs(log10(periodsToTry), output$outpow, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")
+        cobsxy501 <- cobs(log10(periodsToTry), output$outpow, ic='BIC', tau=0.9, lambda=lambdaTrend)
+        cobsxy502 <- cobs(log10(periodsToTry), output$outpow, ic='BIC', tau=0.99, lambda=lambdaTrend)
     }
 
     periodogramTrendRemoved <- cobsxy50$resid
 
+    # periodogramTrendRemoved <- periodogramTrendRemoved - mean(periodogramTrendRemoved)
+
     # (2) Remove local scatter in periodogram
-    scatterWindowLength <- 100
+    scatterWindowLength <- 5000
     Scatter <- computeScatter(periodogramTrendRemoved, windowLength=scatterWindowLength)
     # print("Scatter")
     if (algo == "BLS") {
         lambdaScatter <- 1
-        cobsScatter <- cobs(output$periodsTested, Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
+        cobsScatter <- cobs(log10(output$periodsTested), Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
         # cobss50 <- cobs(output$periodsTested, periodogramTrendRemoved, ic='BIC', tau=0.5, lambda=lambdaTrend, constraint="increase")  # If tau = 0.5 and lambda = 0 => Median regression fit.
         # cobss501 <- cobs(output$periodsTested, periodogramTrendRemoved, ic='BIC', tau=0.9, lambda=lambdaTrend, constraint="increase")
         # cobss502 <- cobs(output$periodsTested, periodogramTrendRemoved, ic='BIC', tau=0.99, lambda=lambdaTrend)
     }
     else if (algo == "TCF") {
         lambdaScatter <- 1
-        cobsScatter <- cobs(periodsToTry, Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
+        cobsScatter <- cobs(log10(periodsToTry), Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
     }
+    # cobsScatter <- sd(periodogramTrendRemoved)
+
+    # plot(log10(output$periodsTested), Scatter, type='l', log='x')
+    # return (10)
 
     # Get the normalized periodogram.
     normalizedPeriodogram <- periodogramTrendRemoved / cobsScatter$fitted
@@ -286,7 +294,7 @@ standardPeriodogram <- function(
             plot(hist.data$count, type='h', log='y', main=sprintf('Original %s periodogram histogram, FAP: %s', algo, formatC(fap, format = "e", digits = 5)), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
         }
         else {
-            plot(hist.data$count, type='h', log='y', main=sprintf('Original %s periodogram histogram', algo, SkewnessBefore, KurtosisBefore), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+            plot(hist.data$count, type='h', log='y', main=sprintf('Original %s periodogram histogram', algo), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
         }
         axis(1, at=1:length(hist.data$mids), labels=hist.data$mids)
 
