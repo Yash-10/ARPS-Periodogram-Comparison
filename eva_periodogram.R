@@ -1,5 +1,5 @@
 # ***************************************************************************
-# Author: Yash Gondhalekar  Last updated: March, 2023
+# Author: Yash Gondhalekar  Last updated: May, 2023
 
 # Description: This script contains the functions used for the extreme value
 #              application. The `evd` function is the driver code.
