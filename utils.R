@@ -38,9 +38,9 @@ getLightCurve <- function(
     ### VIMP note: While giving inputs, never give a period like 1 since duration would be a fraction of 1 which is a float number and since the code rounds the result, results might not be correct.
     ### To prevent such issues, if your `duration` is, say, 1/24 times the period (eg: 1 hr duration for a 1 day period), then pass period = 24 and duration = 1/24 instead of period = 1 and duration = 1/24.
     gaussStd=1e-4,
-    ar=0.2,
-    ma=0.2,
-    order=c(1, 0, 1),  # ARMA, no differencing.
+    # ar=0.2,
+    # ma=0.2,
+    # order=c(1, 0, 1),  # ARMA, no differencing.
     checkConditions=TRUE,  # Whether to perform small unit tests within the code to ensure the output is as expected. Recommended: Set to TRUE for almost all cases, but added this option so that `uniroot` does not throw error when finding the limiting depth - see below functions.
     seedValue=1
 ) {
@@ -293,10 +293,10 @@ calculateSNR <- function(  # TODO: For making this more efficient, compute trend
 # Using the microbenchmark CRAN package, this allows timing the periodogram run - BLS or TCF.
 timeAnalysis <- function(
     period, depth=0.01, duration=2, noiseType=1, ntransits=10,
-    gaussStd=1e-4, ar=0.2, ma=0.2, res=2, order=c(1, 0, 1), algo="BLS",
+    gaussStd=1e-4, res=2, algo="BLS",
     ofac=2, useOptimalFreqSampling=TRUE, times=1, lctype="sim", applyGPRforBLS=FALSE, applyARMAforBLS=FALSE
 ) {
-    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, res=res, checkConditions=TRUE, seedValue=42)
+    yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd=gaussStd, res=res, checkConditions=TRUE, seedValue=42)
     y <- unlist(yt[1])
     t <- unlist(yt[2])
 
@@ -409,7 +409,7 @@ standardizeAPeriodogram <- function(
     scatterWindowLength=1001
 ) {
     lambdaTrend <- 1
-    # lambdaScatter <- 1
+    lambdaScatter <- 1
 
     # (1) Remove trend.
     if (algo == "BLS") {
@@ -430,20 +430,18 @@ standardizeAPeriodogram <- function(
         # (2) Remove local scatter in periodogram.
         Scatter <- computeScatter(periodogramTrendRemoved, windowLength=scatterWindowLength)
         if (algo == "BLS") {
-            lambdaScatter <- 1
             cobsScatter <- cobs(log10(output$periodsTested), Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
         }
         else if (algo == "TCF") {
-            lambdaScatter <- 1
             cobsScatter <- cobs(log10(periodsToTry), Scatter, ic='BIC', tau=0.5, lambda=lambdaScatter)
         }
         # We do not simply divide by the "global" standard deviation.
         # cobsScatter <- sd(periodogramTrendRemoved)
 
         normalizedPeriodogram <- periodogramTrendRemoved / cobsScatter$fitted
-        return (normalizedPeriodogram);
+        return (list(normalizedPeriodogram, cobsxy50))
     }
     else {  # mode == 'detrend'
-        return (periodogramTrendRemoved);
+        return (list(periodogramTrendRemoved, cobsxy50))
     }
 }

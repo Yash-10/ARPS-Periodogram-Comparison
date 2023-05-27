@@ -86,9 +86,9 @@ standardPeriodogram <- function(
     showFAP = FALSE,  # Whether to show the calculated false alarm probability in the plot. If TRUE, it will take much more time since internally the evd() function is run.
     # Below four arguments set the noise parameters. See getLightCurve in utils.R
     gaussStd=1e-4,
-    ar=0.2,
-    ma=0.2,
-    order=c(1, 0, 1),
+    # ar=0.2,
+    # ma=0.2,
+    # order=c(1, 0, 1),
     L=500, R=500,  # Parameters used for extreme value application.
     useOptimalFreqSampling=FALSE,  # Whether to use Ofir's optimal frequency sampling.
     seedValue=1,  # Seed value to use. Can be used for reproducibility.
@@ -103,14 +103,14 @@ standardPeriodogram <- function(
         stop("type is set to `real`, but at least one of {y, t} is not specified!")
     }
     if (lctype == "real") {
-        period <- depth <- duration <- noiseType <- ntransits <- ar <- ma <- order <- gaussStd <- NULL
+        period <- depth <- duration <- noiseType <- ntransits <- gaussStd <- NULL
         significanceMode <- 'max'  # Since for real light curves, passing `expected_peak` is not possible.
         res <- 2
     }
 
     if (lctype == "sim") {
         # Generate light curve using the parameters.
-        yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res, gaussStd=gaussStd, ar=ar, ma=ma, order=order, seedValue=seedValue)
+        yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, res=res, gaussStd=gaussStd, seedValue=seedValue)
         y <- unlist(yt[1])
         t <- unlist(yt[2])
         noiseStd <- unlist(yt[3])

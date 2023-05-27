@@ -1,5 +1,5 @@
 # ***************************************************************************
-# Author: Yash Gondhalekar  Last updated: May, 2023
+# Author: Yash Gondhalekar  Last updated: March, 2023
 
 # Description: This script contains the functions used for the extreme value
 #              application. The `evd` function is the driver code.
@@ -83,9 +83,9 @@ evd <- function(
     # HENCE IT IS IMPORTANT TO KEEP THE SAME gaussStd value WHEN COMPARING BETWEEN AUTOREGRESSIVE AND GAUSSIAN NOISE CASES.
     gaussStd=1e-4,  # 0.01% Gaussian noise
     # Imp: ar, ma, and order arguments are now obsolete. They are not used anywhere.
-    ar=0.2,
-    ma=0.2,
-    order=c(1, 0, 1),
+    # ar=0.2,
+    # ma=0.2,
+    # order=c(1, 0, 1),
     res=2,  # Resolution for creating the time series. Refer getLightCurve from utils.R
     mode='detrend',  # Standardization mode: either detrend_normalize or detrend, see the function `standardizeAPeriodogram`. Only used if useStandardization=TRUE.
     checkConditions=TRUE,  # Mostly passed to light curve generation code. Also used in ad.test p-value check in this function.
@@ -95,10 +95,9 @@ evd <- function(
     FAPSNR_mode=0,  # 0 means only FAP, 1 means only SNR, and 2 means a linear combination of FAP and SNR.
     lctype="sim",  # Light curve type. Allowed values: sim or real. This parameter controls whether the light curve needs to be simulated or is a real light curve. In the former case, period, depth, and duration is needed at the least. In the latter case, y and t are needed as input.
     applyGPRforBLS=FALSE,  # This controls whether Gaussian Process Regression needs to be run before BLS.
-    applyARMAforBLS=FALSE,  # This controls whethter an ARMA model must be fit to the original light curve before applying BLS.
+    applyARMAforBLS=FALSE  # This controls whethter an ARMA model must be fit to the original light curve before applying BLS.
     # It is not recommended to use `applyARMAforBLS` since the ARMA model was shown to significantly model the transits as well.
     # This issue does not occur when ARMA is used on the differenced light curve before TCF since the no. of points of the transit in the differenced ligt curve is very small.
-    scatterWindowLength=1001
 ) {
     # TODO: Add comment if any assumption about Nan is assumed by this code.
     # Perform some checks.
@@ -134,7 +133,7 @@ evd <- function(
 
     if (lctype == "sim") {
         # Generate light curve using the parameters.
-        yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd=gaussStd, ar=ar, ma=ma, order=order, res=res, checkConditions=checkConditions, seedValue=seedValue)
+        yt <- getLightCurve(period, depth, duration, noiseType=noiseType, ntransits=ntransits, gaussStd=gaussStd, res=res, checkConditions=checkConditions, seedValue=seedValue)
         y <- unlist(yt[1])
         t <- unlist(yt[2])
     }
@@ -146,7 +145,7 @@ evd <- function(
 
     # Get the ACF estimate.
     acfEstimate <- acf(y, plot = FALSE, na.action = na.pass)
-    print(sprintf("[parameters: gaussStd = %f, ar = %f, ma = %f, order = %s] ACF at lag-1: %s", gaussStd, ar, ma, paste(order, collapse=" "), acfEstimate$acf[[2]]))
+    print(sprintf("ACF at lag-1: %s", acfEstimate$acf[[2]]))
 
     # Special case (TCF fails if absolutely no noise -- so add a very small amount of noise just to prevent any errors).
     if (lctype == "sim") {
@@ -209,7 +208,7 @@ evd <- function(
         print(sprintf('Scatter window length for standardization used: %d', as.integer(scatterWindowLength)))
         perResults <- c(output$per, output$depth, output$dur)
         if (useStandardization) {
-            output <- standardizeAPeriodogram(output, periodsToTry=NULL, algo="BLS", mode=mode, scatterWindowLength=scatterWindowLength)
+            output <- standardizeAPeriodogram(output, periodsToTry=NULL, algo="BLS", mode=mode, scatterWindowLength=scatterWindowLength)[[1]]
         }
         else {
             output <- output$spec
@@ -230,7 +229,7 @@ evd <- function(
         if (useStandardization) {
             scatterWindowLength <- length(periodsToTry) / 10
             print(sprintf('Scatter window length for standardization used: %d', as.integer(scatterWindowLength)))
-            output <- standardizeAPeriodogram(output, periodsToTry=periodsToTry, algo="TCF", mode=mode, scatterWindowLength=scatterWindowLength)
+            output <- standardizeAPeriodogram(output, periodsToTry=periodsToTry, algo="TCF", mode=mode, scatterWindowLength=scatterWindowLength)[[1]]
         }
         else {
             output <- output$outpow
@@ -281,7 +280,7 @@ evd <- function(
                 else {
                     scatterWindowLength <- length(ptestedPartial)
                 }
-                partialPeriodogram <- standardizeAPeriodogram(out, periodsToTry=NULL, algo="BLS", mode=mode, scatterWindowLength=scatterWindowLength)  # For BLS, the periods tested is gotten from the R object `out`, hence we do not need to pass periodsToTy.
+                partialPeriodogram <- standardizeAPeriodogram(out, periodsToTry=NULL, algo="BLS", mode=mode, scatterWindowLength=scatterWindowLength)[[1]]  # For BLS, the periods tested is gotten from the R object `out`, hence we do not need to pass periodsToTy.
                 # print(sprintf('Scatter window length for standardization used: %d', scatterWindowLength))
             }
             else {
@@ -307,7 +306,7 @@ evd <- function(
                 else {
                     scatterWindowLength <- length(ptestedPartial)
                 }
-                partialPeriodogram <- standardizeAPeriodogram(out, periodsToTry = pToTry, algo="TCF", mode=mode, scatterWindowLength=scatterWindowLength)
+                partialPeriodogram <- standardizeAPeriodogram(out, periodsToTry = pToTry, algo="TCF", mode=mode, scatterWindowLength=scatterWindowLength)[[1]]
             }
             else {
                 partialPeriodogram <- out$outpow
