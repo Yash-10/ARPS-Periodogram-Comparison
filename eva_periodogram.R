@@ -206,7 +206,7 @@ evd <- function(
         ptested <- output$periodsTested
 
         # Calculate SNR of the periodogram peak.
-        snr <- calculateSNR(ptested, output, lambdaTrend=1, oneSideWindowLength=1500)
+        snr <- calculateSNR(ptested, output$spec, lambdaTrend=1, oneSideWindowLength=1500)
 
         scatterWindowLength <- length(ptested) / 10
         print(sprintf('Scatter window length for standardization used: %d', as.integer(scatterWindowLength)))
@@ -229,7 +229,7 @@ evd <- function(
         tresidTCF <- getResidForTCF(y)
         output <- tcf(tresidTCF, p.try = periodsToTry * res, print.output = TRUE)
 
-        snr <- calculateSNR(periodsToTry * res, output, lambdaTrend=1, oneSideWindowLength=1500)
+        snr <- calculateSNR(periodsToTry * res, output$outpow, lambdaTrend=1, oneSideWindowLength=1500)
 
         powmax.loc = which.max(output$outpow)
         perResults <- c(output$inper[powmax.loc]/res, output$outdepth[powmax.loc], output$outdur[powmax.loc]/res)
