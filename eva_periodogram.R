@@ -204,6 +204,10 @@ evd <- function(
         }
         output <- bls(y, t, bls.plot = FALSE, per.min=min(1/freqGrid), per.max=max(1/freqGrid), nper=length(freqGrid))
         ptested <- output$periodsTested
+
+        # Calculate SNR of the periodogram peak.
+        snr <- calculateSNR(ptested, output, lambdaTrend=1, oneSideWindowLength=1500)
+
         scatterWindowLength <- length(ptested) / 10
         print(sprintf('Scatter window length for standardization used: %d', as.integer(scatterWindowLength)))
         perResults <- c(output$per, output$depth, output$dur)
@@ -224,6 +228,9 @@ evd <- function(
         # Hence we apply ARMA even if Gaussian noise is present.
         tresidTCF <- getResidForTCF(y)
         output <- tcf(tresidTCF, p.try = periodsToTry * res, print.output = TRUE)
+
+        snr <- calculateSNR(periodsToTry * res, output, lambdaTrend=1, oneSideWindowLength=1500)
+
         powmax.loc = which.max(output$outpow)
         perResults <- c(output$inper[powmax.loc]/res, output$outdepth[powmax.loc], output$outdur[powmax.loc]/res)
         if (useStandardization) {
@@ -235,13 +242,6 @@ evd <- function(
             output <- output$outpow
         }
         periodAtMaxOutput <- periodsToTry[which.max(output)]
-    }
-    # Calculate SNR of the periodogram peak.
-    if (algo == "BLS") {
-        snr <- calculateSNR(ptested, output, lambdaTrend=1, oneSideWindowLength=1500)
-    }
-    else {
-        snr <- calculateSNR(periodsToTry * res, output, lambdaTrend=1, oneSideWindowLength=1500)
     }
     if (snr < 0) {  # Ideally this will not occur because periodogram peaks will never be negative (unless some strong detrending has been applied) and IQR, by definition, cannot be negative.
         print('Negative SNR, returning NA score.')
