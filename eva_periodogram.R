@@ -249,6 +249,11 @@ evd <- function(
     }
     print(sprintf("Signal-to-noise ratio of periodogram peak = %f", snr))
 
+    if (FAPSNR_mode == 1) {
+        score <- 1 / snr
+        return (c(score, perResults))
+    }
+
     # (2) Max of each partial periodogram
     # Note that from the Suveges, 2014 paper, the reason for doing block maxima is: "The principal goal is to decrease the computational load due to a bootstrap. At the same time, the reduced frequency set should reflect the fundamental characteristics of a full periodogram: ..."
     maxima_R <- c()
@@ -331,11 +336,6 @@ evd <- function(
 
     print(sprintf("Maxima of the R maxima: %f", max(maxima_R)))
     print(sprintf("Maximum of the original periodogram: %f", max(output)))
-
-    if (FAPSNR_mode == 1) {
-        score <- 1 / snr
-        return (c(score, perResults))
-    }
 
     print("Done calculating maxima...")
 
@@ -503,4 +503,3 @@ periodDurationDepthTest <- function(
 
 # Any other papers:
 # Good set of papers: https://arxiv.org/pdf/1712.00734.pdf
-
