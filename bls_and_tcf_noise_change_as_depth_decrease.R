@@ -115,7 +115,6 @@ blsAndTCFDepthChange <- function(
     L=300, R=300, K=2, seedValue=465, applyGPRforBLS=FALSE,
     fapBLS=NaN, fapTCF=NaN
 ) {
-
     set.seed(seedValue)
 
     period <- 2
@@ -178,7 +177,7 @@ blsAndTCFDepthChange <- function(
     perResultsBLS <- resultBLS[2:4]
     perResultsTCF <- resultTCF[2:4]
 
-    png(filename="depth_change_ar_0.023.png", width = 430, height = 320, units='mm', res = 300)
+    png(filename="depth_change_gaussian_0.02.png", width = 430, height = 320, units='mm', res = 300)
     par(mar=c(5,6,4,2), cex=15)
 
     cexVal <- 2.0
@@ -191,7 +190,7 @@ blsAndTCFDepthChange <- function(
     bpergram <- boutput$spec
     tpergram <- toutput$outpow
 
-    plot(t/24, y, type='l', main=sprintf("Period: %.1f days, Depth: %.1f ppm, Duration: %.1f hrs | Noise: Autoregressive", period, depth*1e4, duration), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='Time (days)', ylab='Flux')
+    plot(t/24, y, type='l', main=sprintf("Period: %.1f days, Depth: %.1f ppm, Duration: %.1f hrs | Noise: Gaussian", period, depth*1e4, duration), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='Time (days)', ylab='Flux')
 
     acfEstimate <- acf(y, plot = FALSE, na.action = na.pass)
     lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
@@ -209,7 +208,7 @@ blsAndTCFDepthChange <- function(
     #     col= c("red"), text.col = "black", 
     #     legend=c("trend fit"), bty="n", cex=1.5, pt.cex = 1
     # )
-    text(0.08, 4.5e-5, paste0(sprintf("Period = %.5f days, Depth = %.1f\nSNR = %.1f", perResultsBLS[1]/24, perResultsBLS[2]*1e6, calculateSNR(boutput$periodsTested, bpergram))), cex=1.9, adj=0)
+    text(0.08, 3.8e-5, paste0(sprintf("Period = %.5f days, Depth = %.1f ppm\nSNR = %.1f", perResultsBLS[1]/24, perResultsBLS[2]*1e6, calculateSNR(boutput$periodsTested, bpergram))), cex=1.9, adj=0)
     plot(10**(tcobsxy50$x)/24, tpergram, type = 'l', main="TCF periodogram", log='x', xlab='Period (days) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
     lines((10**tcobsxy50$x)/24, tcobsxy50$fitted, type = 'l', col='red', lwd=3.0)
     # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
@@ -219,7 +218,7 @@ blsAndTCFDepthChange <- function(
     #     col= c("red"), text.col = "black", 
     #     legend=c("trend fit"), bty="n", cex=1.5, pt.cex = 1
     # )
-    text(0.08, 87, paste0(sprintf("Period = %.5f days, Depth = %.1f\nSNR = %.1f", perResultsTCF[1]/24, perResultsTCF[2]*1e6, calculateSNR(tperiodsToTry * res, tpergram))), cex=1.9, adj=0)
+    text(0.08, 153, paste0(sprintf("Period = %.5f days, Depth = %.1f ppm\nSNR = %.1f", perResultsTCF[1]/24, perResultsTCF[2]*1e6, calculateSNR(tperiodsToTry * res, tpergram))), cex=1.9, adj=0)
     ###############################################################################################################
 
     # print(calculateSNR(tperiodsToTry * res, tpergram))
@@ -258,7 +257,7 @@ blsAndTCFDepthChange <- function(
     #     col= c("red"), text.col = "black", 
     #     legend=c("trend fit"), bty="n", cex=1.5, pt.cex = 1
     # )
-    text(22, 5, paste0(sprintf("FAP = %s", formatC(fapBLS, format = "e", digits = 0))), cex=1.9, adj=1)
+    text(0.08, 15, paste0(sprintf("FAP = %s", formatC(fapBLS, format = "e", digits = 0))), cex=1.9, adj=0)
     plot(10**(tcobsxy50$x)/24, ntoutput[[1]], type = 'l', main="Standardized TCF periodogram", log='x', xlab='Period (days) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
     # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
     # lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
@@ -267,7 +266,7 @@ blsAndTCFDepthChange <- function(
     #     col= c("red"), text.col = "black", 
     #     legend=c("trend fit"), bty="n", cex=1.5, pt.cex = 1
     # )
-    text(22, 19, paste0(sprintf("FAP = %s", formatC(fapTCF, format = "e", digits = 0))), cex=1.9, adj=1)
+    text(0.08, 30, paste0(sprintf("FAP = %s", formatC(fapTCF, format = "e", digits = 0))), cex=1.9, adj=0)
     ###############################################################################################################
 
     # Plot histogram of standardized periodograms. Shows log-frequency on y-axis in histogram for better visualization.
@@ -306,11 +305,11 @@ blsAndTCFDepthChange <- function(
 # depth_change_gaussian_0.006.png (BLS, TCF): [adj=1]
     # For period, etc: (22, 1.67e-5), (22, 43)
     # For FAP: (22, 6), (22, 9.5)
-# depth_change_gaussian_0.02.png: [adj=1]
+# depth_change_gaussian_0.02.png: [adj=0]
     # For period, etc: (0.08, 3.8e-5), (0.08, 153)
     # For FAP: (0.08, 15), (0.08, 30)
 
-# depth_change_ar_0.023.png: (BLS, TCF): (0.08, 4.85e-5 + 3.5, 1e-5), (0.08, 86)
+# depth_change_ar_0.023.png: (BLS, TCF): (0.08, 4.6e-5), (0.08, 86); For FAP: 
 # depth_change_ar_0.04.png: (BLS, TCF):
     # For period, etc: (0.08, 7.2e-5), (0.08, 210) -- both adj=0
     # For FAP: (22, 9), (22, 39)
@@ -323,13 +322,13 @@ blsAndTCFDepthChange <- function(
 
 ########### Showing results on real light curves ###########
 blsAndTCFDepthChangeReal <- function(
-    table, noiseType=1, ntransits=10, res=2, ofac=2,
-    gaussStd=1e-4, useOptimalFreqSampling=TRUE,
-    L=300, R=300, K=2, seedValue=465, applyGPRforBLS=TRUE
+    table, noiseType=1, ntransits=10, res=2, ofac=2, useOptimalFreqSampling=TRUE,
+    L=300, R=300, applyGPRforBLS=TRUE
 ) {
     period <- depth <- duration <- noiseType <- ntransits <- ar <- ma <- order <- gaussStd <- NULL
     significanceMode <- 'max'  # Since for real light curves, passing `expected_peak` is not possible.
     res <- 2
+    K <- ofac
 
     rtBLS <- c()
     rtTCF <- c()
@@ -398,9 +397,12 @@ blsAndTCFDepthChangeReal <- function(
     tresidTCF <- getResidForTCF(y)
     toutput <- tcf(tresidTCF, p.try = tperiodsToTry * res, print.output = TRUE)
 
-    stopifnot(exprs={
-        identical(tfreqGrid, bfreqGrid)
-    })
+    # Note that if NaN's are present in the light curve, then the BLS and TCF frequencies will not be the same.
+    # Since all the four real TESS curves have missing values, BLS and TCF frequencies will be different.
+    # Hence, it doesn't make sense to to check the below condition.
+    # stopifnot(exprs={
+    #     identical(tfreqGrid, bfreqGrid)
+    # })
 
     # Normalized periodograms
     # Standardize periodograms
@@ -422,7 +424,7 @@ blsAndTCFDepthChangeReal <- function(
     tcobsxy50 <- ntoutput[[2]]
 
     # Plotting.
-    png(filename="real_4.png", width = 420, height = 210, units='mm', res = 300)
+    png(filename="real_4.png", width = 430, height = 320, units='mm', res = 300)
     par(mar=c(5,6,4,2), cex=15)
 
     cexVal <- 2.0
@@ -436,57 +438,47 @@ blsAndTCFDepthChangeReal <- function(
     bpergram <- boutput$spec
     tpergram <- toutput$outpow
 
-    plot(t/24, y, type='l', main="DTARPS 103 = TIC 89020549", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='Time (days)', ylab='Flux')
-    # acfEstimate <- acf(y, plot = FALSE)
-    # lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
-    # n <- length(acfEstimate$acf)
-    # plot(
-    #     acfEstimate$acf[2:n], main=sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f", lJStats[3], acfEstimate$acf[[2]]), cex=2, type="h", 
-    #     xlab="Lag",     
-    #     ylab="ACF", 
-    #     ylim=c(-0.2,0.2), # this sets the y scale to -0.2 to 0.2
-    #     las=1,
-    #     xaxt="n"
-    # )
-    # abline(h=0)
-    # # Add labels to the x-axis
-    # x <- c(1:n)
-    # y <- c(1:n)
-    # axis(1, at=x, labels=y)
+    plot(t/24, y, type='l', main=sprintf("DTARPS 103 = TIC 89020549"), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlab='Time (days)', ylab='Flux')
 
-    # Note: We show the ACF of the time series as it is. In reality, we slightly modify the time series for BLS (see above).
     acfEstimate <- acf(y, plot = FALSE, na.action = na.pass)
     lJStats <- Box.test(y, lag = 1, type = "Ljung")  # We want to see autocorrelation with each lag, hence pass lag = 1.
     plot(acfEstimate, main="", cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xlim=c(1, 20), ylim=c(-0.2, +0.5))
     text(10, 0.36, sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f\n", lJStats[3], acfEstimate$acf[[2]]), cex=1.9)
-    # plot(acfEstimate, main=sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f", lJStats[3], acfEstimate$acf[[2]]), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, cex=cexVal, ylim=(-0.2, +0.5))
+    # plot(acfEstimate, main=sprintf("P(Ljung-Box) = %.2f, ACF(1) = %.2f", lJStats[3], acfEstimate$acf[[2]]), cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, cex=cexVal, xlim=c(1, 20), ylim=(-0.2, +0.5))
 
-    plot(bcobsxy50$x/24, bpergram, type = 'l', main="BLS periodogram", log='x', xlab='Period (days) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-    lines(bcobsxy50$x/24, bcobsxy50$fitted, type = 'l', col='red', lwd=3.0)
+    # ROW 2 #######################################################################################################
+    plot((10**bcobsxy50$x)/24, bpergram, type = 'l', main="BLS periodogram", log='x', xlab='Period (days) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+    lines((10**bcobsxy50$x)/24, bcobsxy50$fitted, type = 'l', col='red', lwd=3.0)
     # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
     # lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
-    rug(bcobsxy50$knots/24)
+    rug((10**bcobsxy50$knots)/24)
     # legend("topleft", lty = 1, 
     #     col= c("red"), text.col = "black", 
     #     legend=c("trend fit"), bty="n", cex=1.5, pt.cex = 1
     # )
-    text(2/24, 1.62e-4, paste0(sprintf("SNR = %.1f, FAP = %.1e\nPeriod = %.5f days, Depth = %.3f", calculateSNR(boutput$periodsTested, bpergram), fapBLS, perResultsBLS[1]/24, perResultsBLS[2]), "%"), cex=1.8, adj=0)
-    plot(tcobsxy50$x/24, tpergram, type = 'l', main="TCF periodogram", log='x', xlab='Period (days) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
-    lines(tcobsxy50$x/24, tcobsxy50$fitted, type = 'l', col='red', lwd=3.0)
+    text(2/24, 1.62e-4, paste0(sprintf("Period = %.5f days, Depth = %.1f\nSNR = %.1f", perResultsBLS[1]/24, perResultsBLS[2]*1e6, calculateSNR(boutput$periodsTested, bpergram))), cex=1.9, adj=0)
+    plot(10**(tcobsxy50$x)/24, tpergram, type = 'l', main="TCF periodogram", log='x', xlab='Period (days) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+    lines((10**tcobsxy50$x)/24, tcobsxy50$fitted, type = 'l', col='red', lwd=3.0)
     # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
     # lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
-    rug(tcobsxy50$knots/24)
+    rug((10**tcobsxy50$knots)/24)
     # legend("topleft", lty = 1, 
     #     col= c("red"), text.col = "black", 
     #     legend=c("trend fit"), bty="n", cex=1.5, pt.cex = 1
     # )
-    text(2/24, 107, paste0(sprintf("SNR = %.1f, FAP = %.1e\nPeriod = %.5f days, Depth = %.3f", calculateSNR(tperiodsToTry * res, tpergram), fapTCF, perResultsTCF[1]/24, perResultsTCF[2]), "%"), cex=1.8, adj=0)
+    text(2/24, 107, paste0(sprintf("Period = %.5f days, Depth = %.1f\nSNR = %.1f", perResultsTCF[1]/24, perResultsTCF[2]*1e6, calculateSNR(tperiodsToTry * res, tpergram))), cex=1.9, adj=0)
+    ###############################################################################################################
 
-    print(calculateSNR(tperiodsToTry * res, tpergram))
-    print(calculateSNR(boutput$periodsTested, bpergram))
+    # print(calculateSNR(tperiodsToTry * res, tpergram))
+    # print(calculateSNR(boutput$periodsTested, bpergram))
 
-    # Plot histogram of detrended periodogram. Shows log-frequency on y-axis in histogram for better visualization.
-    bhist.data = hist(bperiodogramTrendRemoved, breaks=50, plot = FALSE)
+    # Row 3 ##############################################################################################################
+    # Plot histogram of original periodograms. Shows log-frequency on y-axis in histogram for better visualization.
+    bhist.data = hist(boutput$spec, breaks=50, plot = FALSE)
+    # bSkewnessBefore <- skewness(boutput$spec)
+    # bKurtosisBefore <- kurtosis(boutput$spec)
+
+    thist.data = hist(toutput$outpow, breaks=50, plot = FALSE)
     # Compute skewness and kurtosis of the original and standardized histograms.
     ### Refer https://brownmath.com/stat/shape.htm for more information ###
     ### Note: R does NOT compute the "excess kurtosis".
@@ -495,35 +487,67 @@ blsAndTCFDepthChangeReal <- function(
     # n <- length(x)
     # n * sum((x - mean(x))^4)/(sum((x - mean(x))^2)^2)
     # ``` Taken from https://stackoverflow.com/a/21484052
-    bSkewnessBefore <- skewness(bperiodogramTrendRemoved)
-    bKurtosisBefore <- kurtosis(bperiodogramTrendRemoved)
+    # tSkewnessBefore <- skewness(toutput$outpow)
 
-    thist.data = hist(tperiodogramTrendRemoved, breaks=50, plot = FALSE)
-    # Compute skewness and kurtosis of the original and standardized histograms.
-    ### Refer https://brownmath.com/stat/shape.htm for more information ###
-    ### Note: R does NOT compute the "excess kurtosis".
-    # The kurtosis is calculated as follows:
-    # ```
-    # n <- length(x)
-    # n * sum((x - mean(x))^4)/(sum((x - mean(x))^2)^2)
-    # ``` Taken from https://stackoverflow.com/a/21484052
-    tSkewnessBefore <- skewness(tperiodogramTrendRemoved)
-
-    plot(bhist.data$count, type='h', log='y', main=sprintf('BLS periodogram (detrended) histogram'), cex=cexVal, cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+    plot(bhist.data$count, type='h', log='y', main=sprintf('BLS periodogram histogram'), cex=cexVal, cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
     axis(1, at=1:length(bhist.data$mids), labels=sprintf(bhist.data$mids, fmt="%.1e"), cex.axis=cexVal)
-    plot(thist.data$count, type='h', log='y', main=sprintf('TCF periodogram (detrended) histogram'), cex=cexVal, cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+    plot(thist.data$count, type='h', log='y', main=sprintf('TCF periodogram histogram'), cex=cexVal, cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
     axis(1, at=1:length(thist.data$mids), labels=sprintf(thist.data$mids, fmt="%.1e"), cex.axis=cexVal)
-    tKurtosisBefore <- kurtosis(tperiodogramTrendRemoved)
+    # tKurtosisBefore <- kurtosis(toutput$outpow)
+    ###############################################################################################################
+
+    # Row 4 ##############################################################################################################
+    plot((10**bcobsxy50$x)/24, nboutput[[1]], type = 'l', main="Standardized BLS periodogram", log='x', xlab='Period (days) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+    # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
+    # lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
+    rug((10**bcobsxy50$knots)/24)
+    # legend("topleft", lty = 1, 
+    #     col= c("red"), text.col = "black", 
+    #     legend=c("trend fit"), bty="n", cex=1.5, pt.cex = 1
+    # )
+    text(22, 16, paste0(sprintf("FAP = %s", formatC(fapBLS, format = "e", digits = 0))), cex=1.9, adj=1)
+    plot(10**(tcobsxy50$x)/24, ntoutput[[1]], type = 'l', main="Standardized TCF periodogram", log='x', xlab='Period (days) [log scale]', ylab='Power', cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal)
+    # lines(cobsxy501$x, cobsxy501$fitted, type = 'l', col='cyan')
+    # lines(cobsxy502$x, cobsxy502$fitted, type = 'l', col='magenta')
+    rug((10**tcobsxy50$knots)/24)
+    # legend("topleft", lty = 1, 
+    #     col= c("red"), text.col = "black", 
+    #     legend=c("trend fit"), bty="n", cex=1.5, pt.cex = 1
+    # )
+    text(22, 19.5, paste0(sprintf("FAP = %s", formatC(fapTCF, format = "e", digits = 0))), cex=1.9, adj=1)
+    ###############################################################################################################
+
+    # Plot histogram of standardized periodograms. Shows log-frequency on y-axis in histogram for better visualization.
+    bhist.data = hist(nboutput[[1]], breaks=50, plot = FALSE)
+    # bSkewnessBefore <- skewness(boutput$spec)
+    # bKurtosisBefore <- kurtosis(boutput$spec)
+
+    thist.data = hist(ntoutput[[1]], breaks=50, plot = FALSE)
+    # Compute skewness and kurtosis of the original and standardized histograms.
+    ### Refer https://brownmath.com/stat/shape.htm for more information ###
+    ### Note: R does NOT compute the "excess kurtosis".
+    # The kurtosis is calculated as follows:
+    # ```
+    # n <- length(x)
+    # n * sum((x - mean(x))^4)/(sum((x - mean(x))^2)^2)
+    # ``` Taken from https://stackoverflow.com/a/21484052
+    # tSkewnessBefore <- skewness(toutput$outpow)
+
+    plot(bhist.data$count, type='h', log='y', main=sprintf('Standardized BLS periodogram histogram'), cex=cexVal, cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+    axis(1, at=1:length(bhist.data$mids), labels=sprintf(bhist.data$mids, fmt="%.1e"), cex.axis=cexVal)
+    plot(thist.data$count, type='h', log='y', main=sprintf('Standardized TCF periodogram histogram'), cex=cexVal, cex.main=cexVal, cex.lab=cexVal, cex.axis=cexVal, xaxt="n", lwd=10, lend=2, col='grey61', xlab='Power', ylab='Count')
+    axis(1, at=1:length(thist.data$mids), labels=sprintf(thist.data$mids, fmt="%.1e"), cex.axis=cexVal)
+    # tKurtosisBefore <- kurtosis(toutput$outpow)
 
     # dev.print(png, 'depth_change_gaussian_0.008.png')
     dev.off()
 }
 
 # Coordinates
-# real_1.png: 2/24, 4.5e-4; 2/24, 123
-# real_2.png: 4/24, 4.15e-5; 2/24, 123
-# real_3.png: 35/24, 1.4e-4; 35/24, 240
-# real_4.png: 2/24, 1.62e-4; 2/24, 107
+# real_1.png: 2/24, 4.5e-4; 2/24, 123 ;; 22, 7; 22, 15.5
+# real_2.png: 4/24, 4.15e-5; 2/24, 123 ;; 22, 14.5; 22, 29
+# real_3.png: 35/24, 1.4e-4; 35/24, 240 ;; 
+# real_4.png: 2/24, 1.62e-4; 2/24, 107 ;; 22, 16; 22, 19.5
 
 
 # showFitOverlayed <- function(
@@ -660,9 +684,6 @@ centerPieceFigure <- function(
     scatterWindowLength <- length(tfreqGrid) / 10
     bScatter <- computeScatter(bperiodogramTrendRemoved, windowLength=scatterWindowLength)
     tScatter <- computeScatter(tperiodogramTrendRemoved, windowLength=scatterWindowLength)
-
-    plot(bScatter, type='l')
-    return (1)
 
     # print("Scatter")
     blambdaScatter <- 1
