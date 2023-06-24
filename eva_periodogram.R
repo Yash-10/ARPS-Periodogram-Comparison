@@ -224,7 +224,7 @@ evd <- function(
         freqs <- seq(from = min(freqGrid), by = fstep, length.out = length(freqGrid))
         periodsToTry <- 1 / freqs
         # Empirical observation: In reality, applying ARMA when Gaussian noise is present will give another Gaussian, so is not that helpful.
-        # However, for some reason, it was found to be important to keep ARMA irrespective of the noise to get expected results.
+        # However, since TCF necessarily needs differencing, the diff function needs to be used always: here we diff and apply ARMA even for Gaussian noise, but that should not affect the results much.
         # Hence we apply ARMA even if Gaussian noise is present.
         tresidTCF <- getResidForTCF(y)
         output <- tcf(tresidTCF, p.try = periodsToTry * res, print.output = TRUE)
