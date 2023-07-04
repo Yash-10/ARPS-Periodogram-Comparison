@@ -6,7 +6,7 @@ This repository contains R code for comparing the [BLS](https://www.aanda.org/ar
 ARPS stands for Autoregessive Planet Search. This work is an effort made as part of the ARPS project.
 
 **Motivation for this work**\
-Small transiting exoplanets are hard to detect via the transit method. The BLS periodogram has been the most popular choice for periodicity search. We want to inspect whether comparing periodograms using statistical approaches can allow us to optimize small transiting exoplanet search in future missions, e.g., [PLATO](https://platomission.com/), by selecting the most appropriate periodogram for a given case. While several variants/alternatives to BLS have been proposed since the BLS paper in 2002, we restrict the comparison between BLS and TCF for simplicity.
+Small transiting exoplanets are hard to detect via the transit method. The BLS periodogram has been the most popular choice for periodicity search. We want to inspect whether comparing periodograms using statistical approaches can allow us to optimize small transiting exoplanet search in future missions, e.g., [PLATO](https://platomission.com/) and the [Roman Space Telescope Mission](https://roman.gsfc.nasa.gov/), by selecting the most appropriate periodogram for a given case. While several variants/alternatives to BLS have been proposed since the BLS paper in 2002, we restrict the comparison between BLS and TCF for simplicity.
 
 ## Installation
 
