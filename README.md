@@ -8,6 +8,11 @@ ARPS stands for Autoregessive Planet Search. This work is an effort made as part
 **Motivation for this work**\
 Small transiting exoplanets are hard to detect via the transit method. The BLS periodogram has been the most popular choice for periodicity search. We want to inspect whether comparing periodograms using statistical approaches can allow us to optimize small transiting exoplanet search in future missions, e.g., [PLATO](https://platomission.com/) and the [Roman Space Telescope Mission](https://roman.gsfc.nasa.gov/), by selecting the most appropriate periodogram for a given case. While several variants/alternatives to BLS have been proposed since the BLS paper in 2002, we restrict the comparison between BLS and TCF for simplicity.
 
+**Very brief summary**
+Our paper compares (a) Gaussian Processes Regression detrender + BLS and (b) ARIMA + TCF. In the case of an autocorrelated structure in the time series, we find BLS inferior to TCF, partly because we found Gaussian Processes Regression to not effectively remove short-term correlation structure. ARIMA effectively removes autocorrelation and consequently showed improved sensitivity to small planets. TCF also improves over BLS (using the Signal-to-Noise Ratio (SNR) of periodogram peak) when pure Gaussian noise is simulated. We conclude that one must use ARIMA + TCF instead of BLS and use the SNR of the periodogram peak instead of the False Alarm Probability (FAP).
+
+Please see our paper for more details.
+
 ## Installation
 
 1. Clone the repository.
