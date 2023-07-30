@@ -232,7 +232,8 @@ getFreqGridToTest <- function(
     freqMax <- 1 / perMin
     nfreq <- length(t) * 10  # This particular value is taken from BLS - see bls.R. Here, it is used for both BLS and TCF.
 
-    if (useOptimalFreqSampling & (lctype == "sim")) {  # TODO: This is done because as of now I don't know how to use optimal freq samplin when the true period/frequency is NOT known.
+    if (useOptimalFreqSampling & (lctype == "sim")) {
+        stop("Optimal frequency sampling does not work! Please pass useOptimalFreqSampling=FALSE")
         if (algo == "BLS") {
             q = duration / (period * 24)  # single transit duration / period, both in same units.
         }
