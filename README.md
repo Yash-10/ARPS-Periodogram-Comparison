@@ -1,4 +1,5 @@
-# ARPS - Optimizing future transiting exoplanet surveys
+# Optimizing future transiting exoplanet surveys
+## A method for optimizing the detection of small transiting planets
 [![Notebook example](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1vTNkruatH5Uk4mGoT1WT1K5EU8ej4bca?usp=sharing)
 
 This repository contains R code for comparing the [BLS](https://www.aanda.org/articles/aa/abs/2002/31/aa2422/aa2422.html) and [TCF](https://iopscience.iop.org/article/10.3847/1538-3881/ab26b8) transit periodogram algorithms. It can be extended for comparing any set of periodograms. It uses extreme value theory and/or signal-to-noise ratio (SNR) for comparison.
