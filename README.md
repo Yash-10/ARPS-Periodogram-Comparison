@@ -1,18 +1,23 @@
 # Optimizing future transiting exoplanet surveys
-## A method for optimizing the detection of small transiting planets
 [![Notebook example](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1vTNkruatH5Uk4mGoT1WT1K5EU8ej4bca?usp=sharing)
 
-This repository contains R code for comparing the [BLS](https://www.aanda.org/articles/aa/abs/2002/31/aa2422/aa2422.html) and [TCF](https://iopscience.iop.org/article/10.3847/1538-3881/ab26b8) transit periodogram algorithms. It can be extended for comparing any set of periodograms. It uses extreme value theory and/or signal-to-noise ratio (SNR) for comparison.
+A method for optimizing the detection of small transiting planets
 
-ARPS stands for Autoregessive Planet Search. This work is an effort made as part of the ARPS project.
+---
 
 **Motivation for this work**\
-Small transiting exoplanets are hard to detect via the transit method. The BLS periodogram has been the most popular choice for periodicity search. We want to inspect whether comparing periodograms using statistical approaches can allow us to optimize small transiting exoplanet search in future missions, e.g., [PLATO](https://platomission.com/) and the [Roman Space Telescope Mission](https://roman.gsfc.nasa.gov/), by selecting the most appropriate periodogram for a given case. While several variants/alternatives to BLS have been proposed since the BLS paper in 2002, we restrict the comparison between BLS and TCF for simplicity.
+A major goal of space-based exoplanet transit survey missions (Kepler, K2, TESS, Plato, Roman) is to detect small Earth-sized planets that produce very faint (~0.01%) periodic dips in stellar brightness. This requires an extremely effective reduction of aperiodic stellar and instrumental variations and a very sensitive periodogram applied to the detrended data. Our recent paper (Gondhalekar, Feigelson, Montalto, Caceres & Saha, 2023, submitted to the AAS Journals, arXiv:COMING SOON) provides a detailed analysis of two statistical approaches to this problem. We find that ARIMA detrending and the Transit Comb Filter periodogram is substantially more effective for small planet detection than commonly used detrenders (e.g., splines, Gaussian Processes regression) followed by Box Least Squares periodogram. This AutoRegressive Planet Search (ARPS) approach, developed by Caceres et al. 2019a, has been used to find small transiting planets from the 4-year Kepler dataset (Caceres et al. 2019b) and the Year 1 TESS Full Field Image dataset (Melton et al. 2023a,b,c). 
 
-**Very brief summary**\
-Our paper compares (a) Gaussian Processes Regression detrender + BLS and (b) ARIMA + TCF. In the case of an autocorrelated structure in the time series, we find BLS inferior to TCF, partly because we found Gaussian Processes Regression to not effectively remove short-term correlation structure. ARIMA effectively removes autocorrelation, and consequently, TCF showed improved sensitivity to small planets. TCF also improves over BLS (using the Signal-to-Noise Ratio (SNR) of periodogram peak) when pure Gaussian noise is simulated. The FAP metric did not seem immensely helpful for optimizing small planet detection when used with either BLS or TCF. We conclude that one must use ARIMA + TCF instead of BLS and use the SNR of the periodogram peak instead of the False Alarm Probability (FAP) for improving the detection of small planets embedded in noisy stellar time series.
+**Methodology and coding**\
+This GitHub repository contains R code for comparing the BLS and TCF transit periodogram algorithms. It can be extended for comparing any set of periodograms. It uses extreme value theory and/or signal-to-noise ratio (SNR) for comparison. The R language (with computationally intensive periodogram computations in Fortran) is preferred over Python because of its comprehensive packages for time series analysis and other statistical methodologies.
+
+Several detrending approaches have been used: Gaussian Processes Regression or local regression methods such as Splines and LOWESS. These approaches do an excellent job of removing (generally systematic but can also be stellar) long-term trends from the light curve. The class of parametric AutoRegressive Moving Average (ARMA) models is effective in removing (generally stellar) short-term trends. One well-known issue is that detrending methods often alter the planet's depth since, in its naive usage, the approach has no information about whether and where the transit is present (transit masking, for example, can be used to resolve this). Hence, ARMA used before BLS was not helpful since ARMA advertently modeled the planetary signal.
+
+Our study observed that the ARMA model is beneficial if fitted on a differenced light curve. Once the light curve is differenced, BLS can no longer be used since the box-shaped transit is changed to a double spike. Hence, one can use the TCF periodogram after differencing + ARMA modeling. The resulting pipeline has proven more beneficial than Gaussian Processes Regression/Splines + BLS.
 
 Please see our paper for more details.
+
+---
 
 ## Installation
 
