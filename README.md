@@ -1,12 +1,12 @@
 # Optimizing future transiting exoplanet surveys
 [![Notebook example](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1vTNkruatH5Uk4mGoT1WT1K5EU8ej4bca?usp=sharing)
 
-A method for optimizing the detection of small transiting planets
+A method for optimizing the detection of small transiting planets ([arXiv:2308.04282](https://arxiv.org/abs/2308.04282))
 
 ---
 
 **Motivation for this work**\
-A major goal of space-based exoplanet transit survey missions (Kepler, K2, TESS, Plato, Roman) is to detect small Earth-sized planets that produce very faint (~0.01%) periodic dips in stellar brightness. This requires an extremely effective reduction of aperiodic stellar and instrumental variations and a very sensitive periodogram applied to the detrended data. Our recent paper (Gondhalekar, Feigelson, Montalto, Caceres & Saha, 2023, submitted to the AAS Journals, arXiv:COMING SOON) provides a detailed analysis of two statistical approaches to this problem. We find that ARIMA detrending and the Transit Comb Filter periodogram is substantially more effective for small planet detection than commonly used detrenders (e.g., splines, Gaussian Processes regression) followed by Box Least Squares periodogram. This AutoRegressive Planet Search (ARPS) approach, developed by Caceres et al. 2019a, has been used to find small transiting planets from the 4-year Kepler dataset (Caceres et al. 2019b) and the Year 1 TESS Full Field Image dataset (Melton et al. 2023a,b,c). 
+A major goal of space-based exoplanet transit survey missions (Kepler, K2, TESS, Plato, Roman) is to detect small Earth-sized planets that produce very faint (~0.01%) periodic dips in stellar brightness. This requires an extremely effective reduction of aperiodic stellar and instrumental variations and a very sensitive periodogram applied to the detrended data. Our recent paper (Gondhalekar, Feigelson, Montalto, Caceres & Saha, 2023, submitted to the AAS Journals) provides a detailed analysis of two statistical approaches to this problem. We find that ARIMA detrending and the Transit Comb Filter periodogram is substantially more effective for small planet detection than commonly used detrenders (e.g., splines, Gaussian Processes regression) followed by Box Least Squares periodogram. This AutoRegressive Planet Search (ARPS) approach, developed by Caceres et al. 2019a, has been used to find small transiting planets from the 4-year Kepler dataset (Caceres et al. 2019b) and the Year 1 TESS Full Field Image dataset (Melton et al. 2023a,b,c). 
 
 **Methodology and coding**\
 This GitHub repository contains R code for comparing the BLS and TCF transit periodogram algorithms. It can be extended for comparing any set of periodograms. It uses extreme value theory and/or signal-to-noise ratio (SNR) for comparison. The R language (with computationally intensive periodogram computations in Fortran) is preferred over Python because of its comprehensive packages for time series analysis and other statistical methodologies.
@@ -15,7 +15,24 @@ Several detrending approaches have been used in the past for detrending stellar 
 
 Our study observed that the ARMA model is beneficial if fitted on a differenced light curve. Once the light curve is differenced, BLS can no longer be used since the box-shaped transit is changed to a double spike. Hence, one can use the TCF periodogram after differencing + ARMA modeling. The resulting pipeline has proven more beneficial than Gaussian Processes Regression/Splines + BLS for detecting small planets. The TCF periodogram also possesses better properties (noise characteristics, peak width) than BLS.
 
-Please see our paper for more details.
+Please see our [paper](https://arxiv.org/abs/2308.04282) for more details.
+
+## Repository description
+
+- The `BLS` and `TCF3.0` folders contain the underlying implementation of these algorithms.
+	- The BLS Fortran code is taken from the [original BLS website](https://konkoly.hu/staff/kovacs/bls_code.html) (the modification to handle edge effects, `eebls.f` is used). The folder `BLS` also contains `bls.R`, which is the R interface for the Fortran code. We recommend users use this script for running BLS.
+	- The `TCF3.0` folder contains the TCF implementation. The lower-level implementation is again in Fortran (Fortran was used due to its swift computation). The `tcf.f95` code is the cleaned version after consulting with the original code author, Gabriel A. Caceres. We recommend using this version of TCF for better compatibility with the rest of the code in this repository.
+	- Note that both these implementations are not newly introduced in this repository.
+- The `images` folder contains `.png` figures used in our paper.
+- The `results` folder contains the data used for plotting Figures 5 and 6 in our paper.
+- `DTARPS*.txt` contain four real TESS light curves used in the study (see our paper for details).
+- The rest of the repository contains various scripts (mainly in R, but one in Python). The most important script is `eva_periodogram.R` since it contains the code for running the significance analysis procedure. Note that it depends on the following scripts: `BLS/bls.R`, `TCF3.0/intf_libtcf.R`, and `utils.R`. `utils.R` contains various utility functions. The code contains comments, so it might be easy to understand each function's usage.
+- The notebook `extra_figure_why_tcf_better.ipynb` contains Python code for generating Figure 11 from our paper.
+- The script `bls_and_tcf_noise_change_as_depth_decrease.R` was used to generate Figures 1-4 and 7-10 in the paper.
+- `python_utils.py` contains a standalone Python utility function (it was created since I was not able to implement it in R)
+- `real_light_curve_application.R` is kept in this repository to showcase how this code can be used on real light curves. For a complete example, see the function `blsAndTCFDepthChangeReal` in the script `bls_and_tcf_noise_change_as_depth_decrease.R` here.
+- `time_Analysis.R` contains the script used for plotting Figure 13 in the paper. The data in the script was obtained by running the (long) computations on the [Kaggle](https://www.kaggle.com/) kernel.
+- Any other remaining scripts not described here are perhaps not necessary but have been kept for storage and more context.
 
 ---
 
