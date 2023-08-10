@@ -2,8 +2,7 @@
 # Author: Yash Gondhalekar  Last updated: March, 2023
 
 # Description: This script reads all the four DTARPS TESS light curves showed
-#              in our paper, runs the extreme value code on each, and then
-#              plots the results. This code also provides an example of how
+#              in our paper, runs the extreme value code on each. This code also provides an example of how
 #              to use our code on real light curves.
 
 # ***************************************************************************
