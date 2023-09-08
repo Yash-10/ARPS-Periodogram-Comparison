@@ -1,7 +1,8 @@
-# Optimizing future transiting exoplanet surveys
+# Periodogram Comparison for Optimizing Small Transiting Planet Detection
+
 [![Notebook example](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1vTNkruatH5Uk4mGoT1WT1K5EU8ej4bca?usp=sharing)
 
-A method for optimizing the detection of small transiting planets ([arXiv:2308.04282](https://arxiv.org/abs/2308.04282))
+An approach for optimizing the detection of small transiting planets in future transiting exoplanet surveys ([arXiv:2308.04282](https://arxiv.org/abs/2308.04282))
 
 ---
 
