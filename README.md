@@ -3,7 +3,7 @@
 [![DOI](https://zenodo.org/badge/509952217.svg)](https://zenodo.org/badge/latestdoi/509952217) [![Notebook example](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1vTNkruatH5Uk4mGoT1WT1K5EU8ej4bca?usp=sharing)
 
 
-An approach for optimizing the detection of small transiting planets in future transiting exoplanet surveys ([arXiv:2308.04282](https://arxiv.org/abs/2308.04282))
+An approach for optimizing the detection of small transiting planets in future transiting exoplanet surveys ([Paper](https://iopscience.iop.org/article/10.3847/2041-8213/ad0844#); [arXiv:2308.04282](https://arxiv.org/abs/2308.04282))
 
 ---
 
